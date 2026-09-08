@@ -114,8 +114,12 @@ local SHEDLETSKY_AUTO_ABILITIES = { "Slash", "Fried Chicken" }
 local autoFarmLowHpOn = false
 local autoFarmAllOn = false
 local lockInFrontOn = false
+local stickToPersonOn = false
 local targetHealthThreshold = 20
 local isExecutingAction = false
+local hitDistanceOffset = 3 -- Default distance in studs
+
+local currentLockedTarget = nil -- Persistent target for "Stick to Person"
 
 local LowHpToggle
 local AllPlayersToggle
@@ -208,7 +212,19 @@ end
 --------------------------------------------------------------------------------
 -- TARGET DETECTION & POSITIONING
 --------------------------------------------------------------------------------
+local function isTargetAliveAndValid(p)
+	if not p or not p.Character or p == player then return false end
+	local tHum = p.Character:FindFirstChild("Humanoid")
+	local tRoot = p.Character:FindFirstChild("HumanoidRootPart")
+	return tHum and tRoot and tHum.Health > 0
+end
+
 local function getLowHpTarget(maxHp)
+	-- If Stick to Person is ON and we have a valid target, stick with them until dead
+	if stickToPersonOn and isTargetAliveAndValid(currentLockedTarget) then
+		return currentLockedTarget
+	end
+
 	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
 	if not myRoot then return nil end
 
@@ -216,20 +232,25 @@ local function getLowHpTarget(maxHp)
 	local targetPlayer = nil
 
 	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= player and p.Character then
-			local tHum = p.Character:FindFirstChild("Humanoid")
-			local tRoot = p.Character:FindFirstChild("HumanoidRootPart")
-
-			if tHum and tRoot and tHum.Health > 0 and tHum.Health <= lowestHp then
+		if p ~= player and isTargetAliveAndValid(p) then
+			local tHum = p.Character.Humanoid
+			if tHum.Health <= lowestHp then
 				lowestHp = tHum.Health
 				targetPlayer = p
 			end
 		end
 	end
+
+	currentLockedTarget = targetPlayer
 	return targetPlayer
 end
 
 local function getAnyTarget()
+	-- If Stick to Person is ON and we have a valid target, stick with them until dead
+	if stickToPersonOn and isTargetAliveAndValid(currentLockedTarget) then
+		return currentLockedTarget
+	end
+
 	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
 	if not myRoot then return nil end
 
@@ -237,19 +258,17 @@ local function getAnyTarget()
 	local targetPlayer = nil
 
 	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= player and p.Character then
-			local tHum = p.Character:FindFirstChild("Humanoid")
-			local tRoot = p.Character:FindFirstChild("HumanoidRootPart")
-
-			if tHum and tRoot and tHum.Health > 0 then
-				local dist = (tRoot.Position - myRoot.Position).Magnitude
-				if dist < closestDist then
-					closestDist = dist
-					targetPlayer = p
-				end
+		if p ~= player and isTargetAliveAndValid(p) then
+			local tRoot = p.Character.HumanoidRootPart
+			local dist = (tRoot.Position - myRoot.Position).Magnitude
+			if dist < closestDist then
+				closestDist = dist
+				targetPlayer = p
 			end
 		end
 	end
+
+	currentLockedTarget = targetPlayer
 	return targetPlayer
 end
 
@@ -257,17 +276,17 @@ local function positionAtTarget(targetPlayer)
 	if not targetPlayer or not targetPlayer.Character then return end
 	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
 	local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-	local targetTorso = targetPlayer.Character:FindFirstChild("UpperTorso") or targetPlayer.Character:FindFirstChild("Torso") or targetRoot
 
 	if not myRoot or not targetRoot then return end
 
+	local offset = hitDistanceOffset
+
 	if lockInFrontOn then
-		local frontCFrame = targetRoot.CFrame * CFrame.new(0, 0, -3) * CFrame.Angles(0, math.pi, 0)
+		local frontCFrame = targetRoot.CFrame * CFrame.new(0, 0, -offset) * CFrame.Angles(0, math.pi, 0)
 		myRoot.CFrame = frontCFrame
 	else
-		if targetTorso then
-			myRoot.CFrame = targetTorso.CFrame
-		end
+		local backCFrame = targetRoot.CFrame * CFrame.new(0, 0, offset)
+		myRoot.CFrame = backCFrame
 	end
 end
 --------------------------------------------------------------------------------
@@ -291,9 +310,10 @@ RS.Heartbeat:Connect(function()
 
 	-- 1. AUTO FARM LOW HEALTH PLAYERS
 	if autoFarmLowHpOn then
-		-- Self low-health check (30 HP or below)
+		-- Self low-health protection (30 HP or below)
 		if hum and hum.Health <= 30 then
 			if LowHpToggle then LowHpToggle:Set(false) else autoFarmLowHpOn = false end
+			currentLockedTarget = nil
 			teleportToSafeSpace()
 			return
 		end
@@ -309,14 +329,16 @@ RS.Heartbeat:Connect(function()
 				end
 			end
 		else
+			currentLockedTarget = nil
 			teleportToSafeSpace()
 		end
 
 	-- 2. AUTO FARM ALL PLAYERS
 	elseif autoFarmAllOn then
-		-- Self low-health check (30 HP or below)
+		-- Self low-health protection (30 HP or below)
 		if hum and hum.Health <= 30 then
 			if AllPlayersToggle then AllPlayersToggle:Set(false) else autoFarmAllOn = false end
+			currentLockedTarget = nil
 			teleportToSafeSpace()
 			return
 		end
@@ -332,6 +354,7 @@ RS.Heartbeat:Connect(function()
 				end
 			end
 		else
+			currentLockedTarget = nil
 			teleportToSafeSpace()
 		end
 	end
@@ -349,6 +372,32 @@ AutoFarmTab:CreateToggle({
    end,
 })
 
+AutoFarmTab:CreateToggle({
+   Name = "Stick to Person?",
+   CurrentValue = false,
+   Flag = "StickToPerson_Toggle",
+   Callback = function(Value)
+      stickToPersonOn = Value
+      if not Value then currentLockedTarget = nil end
+   end,
+})
+
+AutoFarmTab:CreateDropdown({
+   Name = "Position Offset (Hit Range)",
+   Options = {"Close (~3 studs)", "Slightly Far (~5.5 studs)", "Far (~8 studs)"},
+   CurrentOption = {"Close (~3 studs)"},
+   Flag = "HitDistance_Dropdown",
+   Callback = function(Option)
+      if Option[1]:find("Slightly Far") then
+         hitDistanceOffset = 5.5
+      elseif Option[1]:find("Far") then
+         hitDistanceOffset = 8
+      else
+         hitDistanceOffset = 3
+      end
+   end,
+})
+
 LowHpToggle = AutoFarmTab:CreateToggle({
    Name = "Auto Farm Low Health Players",
    CurrentValue = false,
@@ -356,6 +405,7 @@ LowHpToggle = AutoFarmTab:CreateToggle({
    Callback = function(Value)
       autoFarmLowHpOn = Value
       if Value and AllPlayersToggle then AllPlayersToggle:Set(false) end
+      if not Value then currentLockedTarget = nil end
    end,
 })
 
@@ -366,6 +416,7 @@ AllPlayersToggle = AutoFarmTab:CreateToggle({
    Callback = function(Value)
       autoFarmAllOn = Value
       if Value and LowHpToggle then LowHpToggle:Set(false) end
+      if not Value then currentLockedTarget = nil end
    end,
 })
 
