@@ -27,11 +27,12 @@ local Window = Rayfield:CreateWindow({
 
 --// TABS
 local CombatTab = Window:CreateTab("Combat", 4483362458)
+local AutoFarmTab = Window:CreateTab("Auto Farm", 4483362458)
 local ESPTab = Window:CreateTab("ESP", 4483362458)
 local UtilityTab = Window:CreateTab("Movement & Misc", 4483362458)
 
 --------------------------------------------------------------------------------
--- CHARACTER TRACKING
+-- CHARACTER & STATE TRACKING
 --------------------------------------------------------------------------------
 local char = player.Character or player.CharacterAdded:Wait()
 local hum = char:WaitForChild("Humanoid")
@@ -40,6 +41,351 @@ player.CharacterAdded:Connect(function(c)
 	char = c
 	hum = c:WaitForChild("Humanoid")
 end)
+
+--------------------------------------------------------------------------------
+-- SAFE SPACE SETUP
+--------------------------------------------------------------------------------
+local SAFE_SPACE_CFRAME = CFrame.new(0, 5000, 0)
+local safeSpacePart = workspace:FindFirstChild("SafeSpaceBaseplate")
+
+if not safeSpacePart then
+	safeSpacePart = Instance.new("Part")
+	safeSpacePart.Name = "SafeSpaceBaseplate"
+	safeSpacePart.Size = Vector3.new(200, 5, 200)
+	safeSpacePart.CFrame = SAFE_SPACE_CFRAME
+	safeSpacePart.Anchored = true
+	safeSpacePart.Material = Enum.Material.SmoothPlastic
+	safeSpacePart.Color = Color3.fromRGB(40, 40, 45)
+	safeSpacePart.Parent = workspace
+end
+
+local function teleportToSafeSpace()
+	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+	if myRoot then
+		myRoot.CFrame = SAFE_SPACE_CFRAME * CFrame.new(0, 5, 0)
+	end
+end
+
+--------------------------------------------------------------------------------
+-- CHARACTER ABILITY CONFIGURATIONS (JASON & SHEDLETSKY)
+--------------------------------------------------------------------------------
+local jasonFolder = ReplicatedStorage:WaitForChild("CharacterAbilities", 5) and ReplicatedStorage.CharacterAbilities:FindFirstChild("Jason")
+local shedFolder = ReplicatedStorage:WaitForChild("CharacterAbilities", 5) and ReplicatedStorage.CharacterAbilities:FindFirstChild("Shedletsky")
+
+local JasonAbilities = {
+	["MainAbility"] = {
+		["Cooldown"] = 1.9,
+		["LastUsed"] = 0,
+		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("JasonAttackRemote")
+	},
+	["AltAbility1"] = {
+		["Cooldown"] = 15,
+		["LastUsed"] = 0,
+		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("Behead")
+	},
+	["AltAbility2"] = {
+		["Cooldown"] = 25,
+		["LastUsed"] = 0,
+		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("GashingWound")
+	},
+	["AltAbility3"] = {
+		["Cooldown"] = 20,
+		["LastUsed"] = 0,
+		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("Enraged")
+	}
+}
+
+local ShedletskyAbilities = {
+	["Slash"] = {
+		["Cooldown"] = 15,
+		["LastUsed"] = 0,
+		["Remote"] = shedFolder and shedFolder:FindFirstChild("ShedletskyAttackRemote")
+	},
+	["Fried Chicken"] = {
+		["Cooldown"] = 15,
+		["LastUsed"] = 0,
+		["Remote"] = shedFolder and shedFolder:FindFirstChild("ShedletskyChickenRemote")
+	}
+}
+
+local JASON_AUTO_ABILITIES = { "MainAbility", "AltAbility1", "AltAbility2" }
+local SHEDLETSKY_AUTO_ABILITIES = { "Slash", "Fried Chicken" }
+
+local autoFarmLowHpOn = false
+local autoFarmAllOn = false
+local lockInFrontOn = false
+local targetHealthThreshold = 20
+local isExecutingAction = false
+
+local LowHpToggle
+local AllPlayersToggle
+
+local function getCurrentCharacterType()
+	if not char then return nil end
+	return char:GetAttribute("Character")
+end
+
+local function canUseCharacter()
+	if not char or not hum or hum.Health <= 0 then return false end
+	local cType = getCurrentCharacterType()
+
+	if cType == "Jason" then
+		return char:GetAttribute("CanAttack") ~= false and char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true
+	elseif cType == "Shedletsky" then
+		return char:GetAttribute("CanRun") ~= false and char:GetAttribute("CanAttack") ~= false and char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true
+	end
+	return false
+end
+
+--------------------------------------------------------------------------------
+-- SHEDLETSKY ANIMATION & ACTION HANDLER
+--------------------------------------------------------------------------------
+local function playShedletskyAnim()
+	if not char or not hum then return end
+	local anim = Instance.new("Animation")
+	local skin = char:GetAttribute("Skin")
+	local actualSkin = char:GetAttribute("ActualSkin")
+
+	if skin == "RetroShed" then anim.AnimationId = "rbxassetid://84906874339359"
+	elseif skin == "M100Shed" or skin == "M75Shed" then anim.AnimationId = "rbxassetid://72661064392418"
+	elseif skin == "BusterShedletsky" then anim.AnimationId = "rbxassetid://102735588255002"
+	elseif skin == "ButcherShedletsky" then anim.AnimationId = "rbxassetid://83703568665249"
+	elseif skin == "NessShedletsky" or skin == "Scout" then anim.AnimationId = "rbxassetid://117635960799966"
+	elseif skin == "Targetman" then anim.AnimationId = "rbxassetid://117814766896269"
+	elseif skin == "SCP" then anim.AnimationId = "rbxassetid://113516249240896"
+	elseif skin == "Snyfort" or skin == "Pastelbeat" or skin == "Upbeat" or skin == "SoapyDX" or skin == "SoapyDXLegacy" or skin == "DownTunes" then anim.AnimationId = "rbxassetid://115680124099922"
+	elseif skin == "Pastello" and (actualSkin ~= "Pastello3" and actualSkin ~= "Pastello4") then anim.AnimationId = "rbxassetid://79130710510782"
+	elseif skin == "Pastello" and actualSkin == "Pastello3" then anim.AnimationId = "rbxassetid://99539026106525"
+	elseif skin == "Pastello" and actualSkin == "Pastello4" then anim.AnimationId = "rbxassetid://115470481199645"
+	elseif skin == "GoldenShedletsky" then anim.AnimationId = "rbxassetid://94865308722467"
+	elseif skin == "TillDawnShedletsky" then anim.AnimationId = "rbxassetid://112474546068323"
+	elseif skin == "Blega" then anim.AnimationId = "rbxassetid://74816403474613"
+	elseif skin == "SoapyDX4" then anim.AnimationId = "rbxassetid://122628818808958"
+	elseif skin == "VIPShed" then anim.AnimationId = "rbxassetid://80100528383027"
+	else anim.AnimationId = "rbxassetid://107302018639039" end
+
+	local track = hum:LoadAnimation(anim)
+	track:Play()
+
+	local conn
+	conn = char:GetAttributeChangedSignal("HitSlash"):Connect(function()
+		if char:GetAttribute("HitSlash") and skin ~= "Blega" then
+			track:Stop()
+			local hitAnim = Instance.new("Animation")
+			hitAnim.AnimationId = "rbxassetid://104029412142861"
+			hum:LoadAnimation(hitAnim):Play()
+			if conn then conn:Disconnect() end
+		end
+	end)
+end
+
+local function castCharacterAction(actionName)
+	if isExecutingAction or not canUseCharacter() then return end
+	local cType = getCurrentCharacterType()
+	local abilityTable = (cType == "Jason" and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities)
+
+	if not abilityTable then return end
+	local data = abilityTable[actionName]
+
+	if data and data.Remote then
+		local now = os.clock()
+		if now - data.LastUsed >= data.Cooldown then
+			isExecutingAction = true
+			data.LastUsed = now
+
+			if cType == "Shedletsky" and actionName == "Slash" then
+				playShedletskyAnim()
+			end
+
+			data.Remote:FireServer()
+			task.delay(0.35, function()
+				isExecutingAction = false
+			end)
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- TARGET DETECTION & POSITIONING
+--------------------------------------------------------------------------------
+local function getLowHpTarget(maxHp)
+	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return nil end
+
+	local lowestHp = maxHp or targetHealthThreshold
+	local targetPlayer = nil
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player and p.Character then
+			local tHum = p.Character:FindFirstChild("Humanoid")
+			local tRoot = p.Character:FindFirstChild("HumanoidRootPart")
+
+			if tHum and tRoot and tHum.Health > 0 and tHum.Health <= lowestHp then
+				lowestHp = tHum.Health
+				targetPlayer = p
+			end
+		end
+	end
+	return targetPlayer
+end
+
+local function getAnyTarget()
+	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return nil end
+
+	local closestDist = math.huge
+	local targetPlayer = nil
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player and p.Character then
+			local tHum = p.Character:FindFirstChild("Humanoid")
+			local tRoot = p.Character:FindFirstChild("HumanoidRootPart")
+
+			if tHum and tRoot and tHum.Health > 0 then
+				local dist = (tRoot.Position - myRoot.Position).Magnitude
+				if dist < closestDist then
+					closestDist = dist
+					targetPlayer = p
+				end
+			end
+		end
+	end
+	return targetPlayer
+end
+
+local function positionAtTarget(targetPlayer)
+	if not targetPlayer or not targetPlayer.Character then return end
+	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+	local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+	local targetTorso = targetPlayer.Character:FindFirstChild("UpperTorso") or targetPlayer.Character:FindFirstChild("Torso") or targetRoot
+
+	if not myRoot or not targetRoot then return end
+
+	if lockInFrontOn then
+		local frontCFrame = targetRoot.CFrame * CFrame.new(0, 0, -3) * CFrame.Angles(0, math.pi, 0)
+		myRoot.CFrame = frontCFrame
+	else
+		if targetTorso then
+			myRoot.CFrame = targetTorso.CFrame
+		end
+	end
+end
+--------------------------------------------------------------------------------
+-- AUTO FARM HEARTBEAT LOOP
+--------------------------------------------------------------------------------
+RS.Heartbeat:Connect(function()
+	-- Shedletsky Anti-Slowdown Enforcement
+	if char and getCurrentCharacterType() == "Shedletsky" then
+		char:SetAttribute("CanRun", true)
+		char:SetAttribute("Slowed", false)
+		if hum and hum.WalkSpeed < 16 then
+			hum.WalkSpeed = 16
+		end
+	end
+
+	if not canUseCharacter() then return end
+
+	local cType = getCurrentCharacterType()
+	local autoList = (cType == "Jason" and JASON_AUTO_ABILITIES) or (cType == "Shedletsky" and SHEDLETSKY_AUTO_ABILITIES) or {}
+	local abilityTable = (cType == "Jason" and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities) or {}
+
+	-- 1. AUTO FARM LOW HEALTH PLAYERS
+	if autoFarmLowHpOn then
+		-- Self low-health check (30 HP or below)
+		if hum and hum.Health <= 30 then
+			if LowHpToggle then LowHpToggle:Set(false) else autoFarmLowHpOn = false end
+			teleportToSafeSpace()
+			return
+		end
+
+		local targetP = getLowHpTarget(targetHealthThreshold)
+		if targetP and targetP.Character then
+			positionAtTarget(targetP)
+
+			for _, abilityName in ipairs(autoList) do
+				local data = abilityTable[abilityName]
+				if data and (os.clock() - data.LastUsed >= data.Cooldown) then
+					castCharacterAction(abilityName)
+				end
+			end
+		else
+			teleportToSafeSpace()
+		end
+
+	-- 2. AUTO FARM ALL PLAYERS
+	elseif autoFarmAllOn then
+		-- Self low-health check (30 HP or below)
+		if hum and hum.Health <= 30 then
+			if AllPlayersToggle then AllPlayersToggle:Set(false) else autoFarmAllOn = false end
+			teleportToSafeSpace()
+			return
+		end
+
+		local targetP = getAnyTarget()
+		if targetP and targetP.Character then
+			positionAtTarget(targetP)
+
+			for _, abilityName in ipairs(autoList) do
+				local data = abilityTable[abilityName]
+				if data and (os.clock() - data.LastUsed >= data.Cooldown) then
+					castCharacterAction(abilityName)
+				end
+			end
+		else
+			teleportToSafeSpace()
+		end
+	end
+end)
+
+--------------------------------------------------------------------------------
+-- AUTO FARM TAB ELEMENTS
+--------------------------------------------------------------------------------
+AutoFarmTab:CreateToggle({
+   Name = "Lock in Front of Person",
+   CurrentValue = false,
+   Flag = "LockInFront_Toggle",
+   Callback = function(Value)
+      lockInFrontOn = Value
+   end,
+})
+
+LowHpToggle = AutoFarmTab:CreateToggle({
+   Name = "Auto Farm Low Health Players",
+   CurrentValue = false,
+   Flag = "AutoFarmLowHp_Toggle",
+   Callback = function(Value)
+      autoFarmLowHpOn = Value
+      if Value and AllPlayersToggle then AllPlayersToggle:Set(false) end
+   end,
+})
+
+AllPlayersToggle = AutoFarmTab:CreateToggle({
+   Name = "Auto Farm All Players",
+   CurrentValue = false,
+   Flag = "AutoFarmAll_Toggle",
+   Callback = function(Value)
+      autoFarmAllOn = Value
+      if Value and LowHpToggle then LowHpToggle:Set(false) end
+   end,
+})
+
+AutoFarmTab:CreateDropdown({
+   Name = "Low HP Target Threshold",
+   Options = {"10 HP", "20 HP", "30 HP", "50 HP"},
+   CurrentOption = {"20 HP"},
+   Flag = "HpThreshold_Dropdown",
+   Callback = function(Option)
+      local val = tonumber(string.match(Option[1], "%d+"))
+      if val then targetHealthThreshold = val end
+   end,
+})
+
+AutoFarmTab:CreateButton({
+   Name = "Teleport to Safe Space",
+   Callback = function()
+      teleportToSafeSpace()
+   end,
+})
 
 --------------------------------------------------------------------------------
 -- RELIABLE BLUE HIGHLIGHT + TEXT ESP
@@ -69,7 +415,6 @@ local function applyESP(plr)
         
         if not root or not targetHum then return end
 
-        -- Create Box Highlight
         local highlight = Instance.new("Highlight")
         highlight.Name = "ESP_Highlight"
         highlight.FillColor = Color3.fromRGB(0, 150, 255)
@@ -79,7 +424,6 @@ local function applyESP(plr)
         highlight.Adornee = targetChar
         highlight.Parent = targetChar
 
-        -- Create Name/HP Overlay
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "ESP_Billboard"
         billboard.AlwaysOnTop = true
@@ -245,237 +589,6 @@ CombatTab:CreateToggle({
       else
          disableLock()
       end
-   end,
-})
-
---------------------------------------------------------------------------------
--- AUTO ABILITIES (JASON)
---------------------------------------------------------------------------------
-local autoAbilitiesOn = false
-local MAX_AUTO_DISTANCE = 15
-
-local jasonFolder = ReplicatedStorage:WaitForChild("CharacterAbilities", 5) and ReplicatedStorage.CharacterAbilities:FindFirstChild("Jason")
-local jasonAbilities = {
-	["MainAbility"] = {
-		["Cooldown"] = 1.9,
-		["LastUsed"] = 0,
-		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("JasonAttackRemote")
-	},
-	["AltAbility1"] = {
-		["Cooldown"] = 15,
-		["LastUsed"] = 0,
-		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("Behead")
-	},
-	["AltAbility2"] = {
-		["Cooldown"] = 25,
-		["LastUsed"] = 0,
-		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("GashingWound")
-	}
-}
-
-local jasonBusy = false
-
-local function canUseJason()
-	if char and char:GetAttribute("Character") == "Jason" and (char:GetAttribute("CanAttack") ~= false and (char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true)) then
-		return hum and hum.Health > 0
-	end
-	return false
-end
-
-local function getClosestPlayerForAbility()
-	local closestChar = nil
-	local shortestDistance = math.huge
-	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-
-	if not myRoot then return nil, math.huge end
-
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= player and p.Character then
-			local targetChar = p.Character
-			local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-			local targetHum = targetChar:FindFirstChild("Humanoid")
-
-			if targetRoot and targetHum and targetHum.Health > 0 then
-				local distance = (targetRoot.Position - myRoot.Position).Magnitude
-				if distance < shortestDistance then
-					shortestDistance = distance
-					closestChar = targetChar
-				end
-			end
-		end
-	end
-	return closestChar, shortestDistance
-end
-
-local function aimAtTarget(targetCharacter)
-	if not targetCharacter then return end
-	local myRoot = char:FindFirstChild("HumanoidRootPart")
-	local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
-
-	if myRoot and targetRoot then
-		local targetPos = Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z)
-		myRoot.CFrame = CFrame.lookAt(myRoot.Position, targetPos)
-	end
-end
-
-local function castJasonAbility(abilityName)
-	if jasonBusy or not canUseJason() then return end
-	local abilityData = jasonAbilities[abilityName]
-	if abilityData and abilityData.Remote then
-		local now = os.clock()
-		if now - abilityData.LastUsed >= abilityData.Cooldown then
-			jasonBusy = true
-			abilityData.LastUsed = now
-			abilityData.Remote:FireServer()
-			task.delay(0.05, function()
-				jasonBusy = false
-			end)
-		end
-	end
-end
-
-RS.Heartbeat:Connect(function()
-	if autoAbilitiesOn and canUseJason() then
-		local closestChar, distance = getClosestPlayerForAbility()
-		if closestChar and distance <= MAX_AUTO_DISTANCE then
-			aimAtTarget(closestChar)
-			for abilityName, _ in pairs(jasonAbilities) do
-				local data = jasonAbilities[abilityName]
-				if data and (os.clock() - data.LastUsed >= data.Cooldown) then
-					castJasonAbility(abilityName)
-				end
-			end
-		end
-	end
-end)
-
-CombatTab:CreateToggle({
-   Name = "auto abilitys (WORKING IN PROCESS)",
-   CurrentValue = false,
-   Flag = "AutoJason_Toggle",
-   Callback = function(Value)
-      autoAbilitiesOn = Value
-   end,
-})
-
---------------------------------------------------------------------------------
--- AUTO SLASH SHEDLETSKY
---------------------------------------------------------------------------------
-local autoShedletskyOn = false
-local MAX_SLASH_DISTANCE = 15
-local shedFolder = ReplicatedStorage:WaitForChild("CharacterAbilities", 5) and ReplicatedStorage.CharacterAbilities:FindFirstChild("Shedletsky")
-
-local shedAbilities = {
-	["Slash"] = {
-		["Cooldown"] = 15,
-		["LastUsed"] = 0,
-		["Remote"] = shedFolder and shedFolder:FindFirstChild("ShedletskyAttackRemote")
-	}
-}
-
-local shedBusy = false
-
-local function canUseShedletsky()
-	if char and char:GetAttribute("Character") == "Shedletsky" and (char:GetAttribute("CanRun") ~= false and (char:GetAttribute("CanAttack") ~= false and (char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true))) then
-		return hum and hum.Health > 0
-	end
-	return false
-end
-
-local function playShedletskyAnim()
-	local anim = Instance.new("Animation")
-	local skin = char:GetAttribute("Skin")
-	local actualSkin = char:GetAttribute("ActualSkin")
-
-	if skin == "RetroShed" then
-		anim.AnimationId = "rbxassetid://84906874339359"
-	elseif skin == "M100Shed" or skin == "M75Shed" then
-		anim.AnimationId = "rbxassetid://72661064392418"
-	elseif skin == "BusterShedletsky" then
-		anim.AnimationId = "rbxassetid://102735588255002"
-	elseif skin == "ButcherShedletsky" then
-		anim.AnimationId = "rbxassetid://83703568665249"
-	elseif skin == "NessShedletsky" or skin == "Scout" then
-		anim.AnimationId = "rbxassetid://117635960799966"
-	elseif skin == "Targetman" then
-		anim.AnimationId = "rbxassetid://117814766896269"
-	elseif skin == "SCP" then
-		anim.AnimationId = "rbxassetid://113516249240896"
-	elseif skin == "Snyfort" or skin == "Pastelbeat" or skin == "Upbeat" or skin == "SoapyDX" or skin == "SoapyDXLegacy" or skin == "DownTunes" then
-		anim.AnimationId = "rbxassetid://115680124099922"
-	elseif skin == "Pastello" and (actualSkin ~= "Pastello3" and actualSkin ~= "Pastello4") then
-		anim.AnimationId = "rbxassetid://79130710510782"
-	elseif skin == "Pastello" and actualSkin == "Pastello3" then
-		anim.AnimationId = "rbxassetid://99539026106525"
-	elseif skin == "Pastello" and actualSkin == "Pastello4" then
-		anim.AnimationId = "rbxassetid://115470481199645"
-	elseif skin == "GoldenShedletsky" then
-		anim.AnimationId = "rbxassetid://94865308722467"
-	elseif skin == "TillDawnShedletsky" then
-		anim.AnimationId = "rbxassetid://112474546068323"
-	elseif skin == "Blega" then
-		anim.AnimationId = "rbxassetid://74816403474613"
-	elseif skin == "SoapyDX4" then
-		anim.AnimationId = "rbxassetid://122628818808958"
-	elseif skin == "VIPShed" then
-		anim.AnimationId = "rbxassetid://80100528383027"
-	else
-		anim.AnimationId = "rbxassetid://107302018639039"
-	end
-
-	local track = hum:LoadAnimation(anim)
-	track:Play()
-
-	local hitConn
-	hitConn = char:GetAttributeChangedSignal("HitSlash"):Connect(function()
-		if char:GetAttribute("HitSlash") and skin ~= "Blega" then
-			track:Stop()
-			local hitAnim = Instance.new("Animation")
-			hitAnim.AnimationId = "rbxassetid://104029412142861"
-			hum:LoadAnimation(hitAnim):Play()
-			if hitConn then hitConn:Disconnect() end
-		end
-	end)
-end
-
-local function performShedletskyAction(actionName)
-	if shedBusy or not canUseShedletsky() then return end
-	local data = shedAbilities[actionName]
-	if data and data.Remote then
-		local now = os.clock()
-		if now - data.LastUsed >= data.Cooldown then
-			shedBusy = true
-			data.LastUsed = now
-			if actionName == "Slash" then
-				playShedletskyAnim()
-			end
-			data.Remote:FireServer()
-			task.delay(0.35, function()
-				shedBusy = false
-			end)
-		end
-	end
-end
-
-RS.Heartbeat:Connect(function()
-	if autoShedletskyOn and canUseShedletsky() then
-		local closestChar, distance = getClosestPlayerForAbility()
-		if closestChar and distance <= MAX_SLASH_DISTANCE then
-			aimAtTarget(closestChar)
-			local slashData = shedAbilities["Slash"]
-			if os.clock() - slashData.LastUsed >= slashData.Cooldown then
-				performShedletskyAction("Slash")
-			end
-		end
-	end
-end)
-
-CombatTab:CreateToggle({
-   Name = "auto slash shedletsky",
-   CurrentValue = false,
-   Flag = "AutoShed_Toggle",
-   Callback = function(Value)
-      autoShedletskyOn = Value
    end,
 })
 
