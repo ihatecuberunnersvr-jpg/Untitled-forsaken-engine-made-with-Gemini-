@@ -1,6 +1,8 @@
 --[[
 	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
 ]]
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
 local player = game.Players.LocalPlayer
 local Players = game:GetService("Players")
 local RS = game:GetService("RunService")
@@ -9,163 +11,137 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local camera = workspace.CurrentCamera
 
---// GUI SETUP
-local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-gui.Name = "UtilityGui"
-gui.ResetOnSpawn = false
+--// RAYFIELD WINDOW SETUP
+local Window = Rayfield:CreateWindow({
+   Name = "UFE Hub",
+   LoadingTitle = "UFE Hub Interface",
+   LoadingSubtitle = "by Assistant",
+   ConfigurationSaving = {
+      Enabled = false,
+   },
+   Discord = {
+      Enabled = false,
+   },
+   KeySystem = false
+})
 
---// MAIN FRAME
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 260, 0, 400)
-frame.Position = UDim2.new(0.05, 0, 0.3, 0)
-frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-
-local corner = Instance.new("UICorner", frame)
-corner.CornerRadius = UDim.new(0, 12)
-
---// MINI BUTTON
-local mini = Instance.new("TextButton", gui)
-mini.Size = UDim2.new(0, 40, 0, 40)
-mini.Position = frame.Position
-mini.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-mini.Text = "GUI"
-mini.TextColor3 = Color3.new(1, 1, 1)
-mini.Visible = false
-mini.Active = true
-mini.Draggable = true
-
-local minicorner = Instance.new("UICorner", mini)
-minicorner.CornerRadius = UDim.new(1, 0)
-
---// TOP BAR
-local top = Instance.new("Frame", frame)
-top.Size = UDim2.new(1, 0, 0, 30)
-top.BackgroundTransparency = 1
-
-local title = Instance.new("TextLabel", top)
-title.Size = UDim2.new(1, -30, 1, 0)
-title.Position = UDim2.new(0, 8, 0, 0)
-title.Text = "UFE hub ezzzzz"
-title.TextColor3 = Color3.new(1, 1, 1)
-title.BackgroundTransparency = 1
-title.Font = Enum.Font.SourceSansBold
-title.TextSize = 18
-title.TextXAlignment = Enum.TextXAlignment.Left
-
-local minimize = Instance.new("TextButton", top)
-minimize.Size = UDim2.new(0, 30, 1, 0)
-minimize.Position = UDim2.new(1, -30, 0, 0)
-minimize.Text = "-"
-minimize.TextColor3 = Color3.new(1, 1, 1)
-minimize.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-
-minimize.MouseButton1Click:Connect(function()
-    frame.Visible = false
-    mini.Visible = true
-    mini.Position = frame.Position
-end)
-
-mini.MouseButton1Click:Connect(function()
-    frame.Visible = true
-    mini.Visible = false
-end)
-
---// HOLDER (CONTAINER FOR BUTTONS)
-local holder = Instance.new("Frame", frame)
-holder.Position = UDim2.new(0, 0, 0, 30)
-holder.Size = UDim2.new(1, 0, 1, -30)
-holder.BackgroundTransparency = 1
-
-local layout = Instance.new("UIListLayout", holder)
-layout.Padding = UDim.new(0, 6)
-
-local function makeButton(text)
-    local b = Instance.new("TextButton", holder)
-    b.Size = UDim2.new(1, -10, 0, 32)
-    b.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-    b.TextColor3 = Color3.fromRGB(255, 255, 255)
-    b.Text = text
-    b.Font = Enum.Font.SourceSansBold
-    b.TextSize = 14
-    local c = Instance.new("UICorner", b)
-    c.CornerRadius = UDim.new(0, 8)
-    return b
-end
+--// TABS
+local CombatTab = Window:CreateTab("Combat", 4483362458)
+local ESPTab = Window:CreateTab("ESP", 4483362458)
+local UtilityTab = Window:CreateTab("Movement & Misc", 4483362458)
 
 --------------------------------------------------------------------------------
--- 2D BLUE BOX ESP
+-- CHARACTER TRACKING
+--------------------------------------------------------------------------------
+local char = player.Character or player.CharacterAdded:Wait()
+local hum = char:WaitForChild("Humanoid")
+
+player.CharacterAdded:Connect(function(c)
+	char = c
+	hum = c:WaitForChild("Humanoid")
+end)
+
+--------------------------------------------------------------------------------
+-- RELIABLE BLUE HIGHLIGHT + TEXT ESP
 --------------------------------------------------------------------------------
 local espOn = false
-local espButton = makeButton("ESP: OFF")
-local espFolder = Instance.new("Folder", gui)
-espFolder.Name = "ESP2DFolder"
+local activeESP = {}
 
-local function create2DESP(plr)
-    if plr == player then return end
-
-    local bill = Instance.new("BillboardGui")
-    bill.Name = plr.Name .. "_2DESP"
-    bill.AlwaysOnTop = true
-    bill.Size = UDim2.new(3.5, 0, 5, 0)
-    bill.ClipsDescendants = false
-
-    local box = Instance.new("Frame", bill)
-    box.Size = UDim2.new(1, 0, 1, 0)
-    box.BackgroundTransparency = 1
-    box.BorderSizePixel = 2
-    box.BorderColor3 = Color3.fromRGB(0, 150, 255)
-
-    local label = Instance.new("TextLabel", bill)
-    label.Size = UDim2.new(1, 0, 0, 20)
-    label.Position = UDim2.new(0, 0, -0.25, 0)
-    label.BackgroundTransparency = 1
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextStrokeTransparency = 0
-    label.Font = Enum.Font.SourceSansBold
-    label.TextSize = 14
-
-    local connection
-    local function attachToChar(char)
-        if not char then return end
-        local root = char:WaitForChild("HumanoidRootPart", 5)
-        local hum = char:WaitForChild("Humanoid", 5)
-        if not root or not hum then return end
-
-        bill.Adornee = root
-        bill.Parent = espFolder
-
-        if connection then connection:Disconnect() end
-        connection = RS.RenderStepped:Connect(function()
-            if not espOn or not char:IsDescendantOf(workspace) or hum.Health <= 0 then
-                bill.Enabled = false
-            else
-                bill.Enabled = true
-                label.Text = plr.Name .. " | " .. math.floor(hum.Health) .. " HP"
-            end
-        end)
+local function removeESP(plr)
+    if activeESP[plr] then
+        if activeESP[plr].Highlight then activeESP[plr].Highlight:Destroy() end
+        if activeESP[plr].Billboard then activeESP[plr].Billboard:Destroy() end
+        if activeESP[plr].Connection then activeESP[plr].Connection:Disconnect() end
+        activeESP[plr] = nil
     end
-
-    if plr.Character then attachToChar(plr.Character) end
-    plr.CharacterAdded:Connect(attachToChar)
 end
 
-espButton.MouseButton1Click:Connect(function()
-    espOn = not espOn
-    espButton.Text = espOn and "ESP: ON" or "ESP: OFF"
-    espFolder:ClearAllChildren()
+local function applyESP(plr)
+    if plr == player then return end
+    removeESP(plr)
 
-    if espOn then
-        for _, p in ipairs(Players:GetPlayers()) do
-            create2DESP(p)
-        end
+    local function setupChar(targetChar)
+        if not targetChar then return end
+        
+        local root = targetChar:WaitForChild("HumanoidRootPart", 5)
+        local targetHum = targetChar:WaitForChild("Humanoid", 5)
+        local head = targetChar:WaitForChild("Head", 5) or root
+        
+        if not root or not targetHum then return end
+
+        -- Create Box Highlight
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "ESP_Highlight"
+        highlight.FillColor = Color3.fromRGB(0, 150, 255)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.OutlineTransparency = 0
+        highlight.Adornee = targetChar
+        highlight.Parent = targetChar
+
+        -- Create Name/HP Overlay
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "ESP_Billboard"
+        billboard.AlwaysOnTop = true
+        billboard.Size = UDim2.new(0, 200, 0, 30)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.Adornee = head
+        billboard.Parent = targetChar
+
+        local label = Instance.new("TextLabel", billboard)
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextStrokeTransparency = 0
+        label.Font = Enum.Font.SourceSansBold
+        label.TextSize = 14
+
+        local conn = RS.RenderStepped:Connect(function()
+            if not espOn or not targetChar:IsDescendantOf(workspace) or targetHum.Health <= 0 then
+                highlight.Enabled = false
+                billboard.Enabled = false
+            else
+                highlight.Enabled = true
+                billboard.Enabled = true
+                label.Text = plr.Name .. " | " .. math.floor(targetHum.Health) .. " HP"
+            end
+        end)
+
+        activeESP[plr] = {
+            Highlight = highlight,
+            Billboard = billboard,
+            Connection = conn
+        }
     end
-end)
+
+    if plr.Character then setupChar(plr.Character) end
+    plr.CharacterAdded:Connect(setupChar)
+end
+
+ESPTab:CreateToggle({
+   Name = "Blue Highlight & Box ESP",
+   CurrentValue = false,
+   Flag = "ESP_Toggle",
+   Callback = function(Value)
+      espOn = Value
+      if espOn then
+         for _, p in ipairs(Players:GetPlayers()) do
+            applyESP(p)
+         end
+      else
+         for p, _ in pairs(activeESP) do
+            removeESP(p)
+         end
+      end
+   end,
+})
 
 Players.PlayerAdded:Connect(function(p)
-    if espOn then create2DESP(p) end
+    if espOn then applyESP(p) end
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    removeESP(p)
 end)
 
 --------------------------------------------------------------------------------
@@ -177,13 +153,12 @@ local CAMERA_OFFSET = Vector3.new(0, 4.5, 10)
 
 local currentTarget = nil
 local isLocked = false
-local camlockBtn = makeButton("CamLock: OFF")
 
 local function getPlayerInCameraView()
-    local character = player.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+    local myChar = player.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
     
-    local myRoot = character.HumanoidRootPart
+    local myRoot = myChar.HumanoidRootPart
     local bestTarget = nil
     local highestFacingScore = 0.4 
     local cameraLookDirection = camera.CFrame.LookVector
@@ -215,16 +190,11 @@ local function disableLock()
     isLocked = false
     currentTarget = nil
     RS:UnbindFromRenderStep("CamlockLoop")
-    camlockBtn.Text = "CamLock: OFF"
-    camlockBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 end
 
 local function enableLock(targetPlayerChar)
     currentTarget = targetPlayerChar
     isLocked = true
-
-    camlockBtn.Text = "CamLock: ON"
-    camlockBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
 
     RS:BindToRenderStep("CamlockLoop", Enum.RenderPriority.Camera.Value + 1, function()
         local myChar = player.Character
@@ -254,43 +224,38 @@ local function enableLock(targetPlayerChar)
     end)
 end
 
-camlockBtn.MouseButton1Click:Connect(function()
-    if isLocked then
-        disableLock()
-    else
-        local target = getPlayerInCameraView()
-        if target then
+CombatTab:CreateToggle({
+   Name = "CamLock Target",
+   CurrentValue = false,
+   Flag = "CamLock_Toggle",
+   Callback = function(Value)
+      if Value then
+         local target = getPlayerInCameraView()
+         if target then
             enableLock(target)
-        else
-            camlockBtn.Text = "NO TARGET IN VIEW"
-            camlockBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
-            task.wait(1)
-            if not isLocked then
-                camlockBtn.Text = "CamLock: OFF"
-                camlockBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-            end
-        end
-    end
-end)
+         else
+            Rayfield:Notify({
+               Title = "CamLock",
+               Content = "No Target in Camera View",
+               Duration = 2,
+               Image = 4483362458,
+            })
+            disableLock()
+         end
+      else
+         disableLock()
+      end
+   end,
+})
 
 --------------------------------------------------------------------------------
--- AUTO ABILITIES (JASON ABILITIES AUTO-CAST)
+-- AUTO ABILITIES (JASON)
 --------------------------------------------------------------------------------
 local autoAbilitiesOn = false
-local autoAbilitiesBtn = makeButton("auto abilitys (WORKING IN PROCESS)")
-
-local v_u_6 = player.Character or player.CharacterAdded:Wait()
-local v_u_7 = v_u_6:WaitForChild("Humanoid")
-
-player.CharacterAdded:Connect(function(char)
-	v_u_6 = char
-	v_u_7 = char:WaitForChild("Humanoid")
-end)
-
 local MAX_AUTO_DISTANCE = 15
 
 local jasonFolder = ReplicatedStorage:WaitForChild("CharacterAbilities", 5) and ReplicatedStorage.CharacterAbilities:FindFirstChild("Jason")
-local v_u_10 = {
+local jasonAbilities = {
 	["MainAbility"] = {
 		["Cooldown"] = 1.9,
 		["LastUsed"] = 0,
@@ -305,20 +270,14 @@ local v_u_10 = {
 		["Cooldown"] = 25,
 		["LastUsed"] = 0,
 		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("GashingWound")
-	},
-	["AltAbility3"] = {
-		["Cooldown"] = 20,
-		["LastUsed"] = 0,
-		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("Enraged")
 	}
 }
 
-local AUTO_CAST_ABILITIES = { "MainAbility", "AltAbility1", "AltAbility2" }
-local v_u_13 = false
+local jasonBusy = false
 
-local function canUseAbility()
-	if v_u_6 and v_u_6:GetAttribute("Character") == "Jason" and (v_u_6:GetAttribute("CanAttack") ~= false and (v_u_6:GetAttribute("Emoting") ~= true and v_u_6:GetAttribute("AbilitiesDisabled") ~= true)) then
-		return v_u_7.Health > 0
+local function canUseJason()
+	if char and char:GetAttribute("Character") == "Jason" and (char:GetAttribute("CanAttack") ~= false and (char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true)) then
+		return hum and hum.Health > 0
 	end
 	return false
 end
@@ -326,7 +285,7 @@ end
 local function getClosestPlayerForAbility()
 	local closestChar = nil
 	local shortestDistance = math.huge
-	local myRoot = v_u_6 and v_u_6:FindFirstChild("HumanoidRootPart")
+	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
 
 	if not myRoot then return nil, math.huge end
 
@@ -350,7 +309,7 @@ end
 
 local function aimAtTarget(targetCharacter)
 	if not targetCharacter then return end
-	local myRoot = v_u_6:FindFirstChild("HumanoidRootPart")
+	local myRoot = char:FindFirstChild("HumanoidRootPart")
 	local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
 
 	if myRoot and targetRoot then
@@ -359,54 +318,50 @@ local function aimAtTarget(targetCharacter)
 	end
 end
 
-local function castAbility(abilityName)
-	if v_u_13 or not canUseAbility() then return end
-	local abilityData = v_u_10[abilityName]
+local function castJasonAbility(abilityName)
+	if jasonBusy or not canUseJason() then return end
+	local abilityData = jasonAbilities[abilityName]
 	if abilityData and abilityData.Remote then
 		local now = os.clock()
 		if now - abilityData.LastUsed >= abilityData.Cooldown then
-			v_u_13 = true
+			jasonBusy = true
 			abilityData.LastUsed = now
 			abilityData.Remote:FireServer()
 			task.delay(0.05, function()
-				v_u_13 = false
+				jasonBusy = false
 			end)
 		end
 	end
 end
 
 RS.Heartbeat:Connect(function()
-	if autoAbilitiesOn and canUseAbility() then
+	if autoAbilitiesOn and canUseJason() then
 		local closestChar, distance = getClosestPlayerForAbility()
 		if closestChar and distance <= MAX_AUTO_DISTANCE then
 			aimAtTarget(closestChar)
-			for _, abilityName in ipairs(AUTO_CAST_ABILITIES) do
-				local data = v_u_10[abilityName]
+			for abilityName, _ in pairs(jasonAbilities) do
+				local data = jasonAbilities[abilityName]
 				if data and (os.clock() - data.LastUsed >= data.Cooldown) then
-					castAbility(abilityName)
+					castJasonAbility(abilityName)
 				end
 			end
 		end
 	end
 end)
 
-autoAbilitiesBtn.MouseButton1Click:Connect(function()
-	autoAbilitiesOn = not autoAbilitiesOn
-	if autoAbilitiesOn then
-		autoAbilitiesBtn.Text = "Auto Abilities: ON"
-		autoAbilitiesBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-	else
-		autoAbilitiesBtn.Text = "auto abilitys (WORKING IN PROCESS)"
-		autoAbilitiesBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-	end
-end)
+CombatTab:CreateToggle({
+   Name = "auto abilitys (WORKING IN PROCESS)",
+   CurrentValue = false,
+   Flag = "AutoJason_Toggle",
+   Callback = function(Value)
+      autoAbilitiesOn = Value
+   end,
+})
 
 --------------------------------------------------------------------------------
 -- AUTO SLASH SHEDLETSKY
 --------------------------------------------------------------------------------
 local autoShedletskyOn = false
-local autoShedletskyBtn = makeButton("auto slash shedletsky")
-
 local MAX_SLASH_DISTANCE = 15
 local shedFolder = ReplicatedStorage:WaitForChild("CharacterAbilities", 5) and ReplicatedStorage.CharacterAbilities:FindFirstChild("Shedletsky")
 
@@ -415,27 +370,22 @@ local shedAbilities = {
 		["Cooldown"] = 15,
 		["LastUsed"] = 0,
 		["Remote"] = shedFolder and shedFolder:FindFirstChild("ShedletskyAttackRemote")
-	},
-	["Fried Chicken"] = {
-		["Cooldown"] = 15,
-		["LastUsed"] = 0,
-		["Remote"] = shedFolder and shedFolder:FindFirstChild("ShedletskyChickenRemote")
 	}
 }
 
 local shedBusy = false
 
 local function canUseShedletsky()
-	if v_u_6 and v_u_6:GetAttribute("Character") == "Shedletsky" and (v_u_6:GetAttribute("CanRun") ~= false and (v_u_6:GetAttribute("CanAttack") ~= false and (v_u_6:GetAttribute("Emoting") ~= true and v_u_6:GetAttribute("AbilitiesDisabled") ~= true))) then
-		return v_u_7.Health > 0
+	if char and char:GetAttribute("Character") == "Shedletsky" and (char:GetAttribute("CanRun") ~= false and (char:GetAttribute("CanAttack") ~= false and (char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true))) then
+		return hum and hum.Health > 0
 	end
 	return false
 end
 
 local function playShedletskyAnim()
 	local anim = Instance.new("Animation")
-	local skin = v_u_6:GetAttribute("Skin")
-	local actualSkin = v_u_6:GetAttribute("ActualSkin")
+	local skin = char:GetAttribute("Skin")
+	local actualSkin = char:GetAttribute("ActualSkin")
 
 	if skin == "RetroShed" then
 		anim.AnimationId = "rbxassetid://84906874339359"
@@ -473,16 +423,16 @@ local function playShedletskyAnim()
 		anim.AnimationId = "rbxassetid://107302018639039"
 	end
 
-	local track = v_u_7:LoadAnimation(anim)
+	local track = hum:LoadAnimation(anim)
 	track:Play()
 
 	local hitConn
-	hitConn = v_u_6:GetAttributeChangedSignal("HitSlash"):Connect(function()
-		if v_u_6:GetAttribute("HitSlash") and skin ~= "Blega" then
+	hitConn = char:GetAttributeChangedSignal("HitSlash"):Connect(function()
+		if char:GetAttribute("HitSlash") and skin ~= "Blega" then
 			track:Stop()
 			local hitAnim = Instance.new("Animation")
 			hitAnim.AnimationId = "rbxassetid://104029412142861"
-			v_u_7:LoadAnimation(hitAnim):Play()
+			hum:LoadAnimation(hitAnim):Play()
 			if hitConn then hitConn:Disconnect() end
 		end
 	end)
@@ -520,71 +470,73 @@ RS.Heartbeat:Connect(function()
 	end
 end)
 
-autoShedletskyBtn.MouseButton1Click:Connect(function()
-	autoShedletskyOn = not autoShedletskyOn
-	if autoShedletskyOn then
-		autoShedletskyBtn.Text = "Auto Slash Shedletsky: ON"
-		autoShedletskyBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-	else
-		autoShedletskyBtn.Text = "auto slash shedletsky"
-		autoShedletskyBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-	end
-end)
+CombatTab:CreateToggle({
+   Name = "auto slash shedletsky",
+   CurrentValue = false,
+   Flag = "AutoShed_Toggle",
+   Callback = function(Value)
+      autoShedletskyOn = Value
+   end,
+})
 
 --------------------------------------------------------------------------------
--- TPWALK & SPEED
+-- TPWALK & MOVEMENT UTILITIES
 --------------------------------------------------------------------------------
 local tpwalkOn = false
 local speed = 1
-local tpwalkButton = makeButton("TpWalk: OFF")
 
-tpwalkButton.MouseButton1Click:Connect(function()
-    tpwalkOn = not tpwalkOn
-    tpwalkButton.Text = tpwalkOn and "TpWalk: ON" or "TpWalk: OFF"
-end)
+UtilityTab:CreateToggle({
+   Name = "TpWalk",
+   CurrentValue = false,
+   Flag = "TpWalk_Toggle",
+   Callback = function(Value)
+      tpwalkOn = Value
+   end,
+})
 
-local slider = makeButton("Speed: 1")
-slider.MouseButton1Click:Connect(function()
-    speed += 1
-    if speed > 10 then speed = 1 end
-    slider.Text = "Speed: "..speed
-end)
+UtilityTab:CreateSlider({
+   Name = "TpWalk Speed",
+   Range = {1, 10},
+   Increment = 1,
+   Suffix = "x",
+   CurrentValue = 1,
+   Flag = "Speed_Slider",
+   Callback = function(Value)
+      speed = Value
+   end,
+})
 
 RS.RenderStepped:Connect(function()
-    if tpwalkOn then
-        local char = player.Character
-        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
-            local hrp = char.HumanoidRootPart
-            local move = char.Humanoid.MoveDirection
-            hrp.CFrame = hrp.CFrame + (move * speed)
-        end
+    if tpwalkOn and char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
+        local hrp = char.HumanoidRootPart
+        local move = char.Humanoid.MoveDirection
+        hrp.CFrame = hrp.CFrame + (move * speed)
     end
 end)
 
 --------------------------------------------------------------------------------
--- TELEPORT TO SAVED POSITION + PLATFORM
+-- SAVE PLACE / PLATFORM
 --------------------------------------------------------------------------------
 local savedPos = Vector3.new(-1119.03076171875, 894.944580078125, -85.89985656738281)
 local platform
-local posButton = makeButton("Save Place")
 
-posButton.MouseButton1Click:Connect(function()
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+UtilityTab:CreateButton({
+   Name = "Save Place (Platform TP)",
+   Callback = function()
+      local hrp = char and char:FindFirstChild("HumanoidRootPart")
+      if not hrp then return end
 
-    if not platform then
-        platform = Instance.new("Part")
-        platform.Size = Vector3.new(60,5,60)
-        platform.Position = savedPos
-        platform.Anchored = true
-        platform.Color = Color3.fromRGB(120,120,120)
-        platform.Material = Enum.Material.SmoothPlastic
-        platform.Name = "SafePlatform"
-        platform.Parent = workspace
-    end
+      if not platform then
+          platform = Instance.new("Part")
+          platform.Size = Vector3.new(60, 5, 60)
+          platform.Position = savedPos
+          platform.Anchored = true
+          platform.Color = Color3.fromRGB(120, 120, 120)
+          platform.Material = Enum.Material.SmoothPlastic
+          platform.Name = "SafePlatform"
+          platform.Parent = workspace
+      end
 
-    hrp.CFrame = CFrame.new(savedPos + Vector3.new(0,6,0))
-end)
-
+      hrp.CFrame = CFrame.new(savedPos + Vector3.new(0, 6, 0))
+   end,
+})
