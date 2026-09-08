@@ -116,7 +116,6 @@ local autoFarmAllOn = false
 local lockInFrontOn = false
 local stickToPersonOn = false
 local targetHealthThreshold = 20
-local isExecutingAction = false
 local hitDistanceOffset = 3 -- Default distance in studs
 
 local currentLockedTarget = nil -- Persistent target tracking
@@ -184,7 +183,7 @@ local function playShedletskyAnim()
 end
 
 local function castCharacterAction(actionName)
-	if isExecutingAction or not canUseCharacter() then return end
+	if not canUseCharacter() then return end
 	local cType = getCurrentCharacterType()
 	local abilityTable = ((cType == "Jason" or cType == "Slasher") and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities)
 
@@ -194,7 +193,6 @@ local function castCharacterAction(actionName)
 	if data and data.Remote then
 		local now = os.clock()
 		if now - data.LastUsed >= data.Cooldown then
-			isExecutingAction = true
 			data.LastUsed = now
 
 			if cType == "Shedletsky" and actionName == "Slash" then
@@ -202,9 +200,6 @@ local function castCharacterAction(actionName)
 			end
 
 			data.Remote:FireServer()
-			task.delay(0.35, function()
-				isExecutingAction = false
-			end)
 		end
 	end
 end
@@ -220,7 +215,6 @@ local function isTargetAliveAndValid(p)
 end
 
 local function getLowHpTarget(maxHp)
-	-- If Stick to Person is active, retain target until they die
 	if stickToPersonOn and isTargetAliveAndValid(currentLockedTarget) then
 		return currentLockedTarget
 	end
@@ -246,7 +240,6 @@ local function getLowHpTarget(maxHp)
 end
 
 local function getAnyTarget()
-	-- If Stick to Person is active, retain target until they die
 	if stickToPersonOn and isTargetAliveAndValid(currentLockedTarget) then
 		return currentLockedTarget
 	end
@@ -279,18 +272,43 @@ local function positionAtTarget(targetPlayer)
 
 	if not myRoot or not targetRoot then return end
 
+	-- Disable player collision so models don't shove each other off
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = false
+		end
+	end
+
 	local offset = hitDistanceOffset
 
 	if lockInFrontOn then
-		local frontCFrame = targetRoot.CFrame * CFrame.new(0, 0, -offset) * CFrame.Angles(0, math.pi, 0)
-		myRoot.CFrame = frontCFrame
+		myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -offset) * CFrame.Angles(0, math.pi, 0)
 	else
-		local backCFrame = targetRoot.CFrame * CFrame.new(0, 0, offset)
-		myRoot.CFrame = backCFrame
+		myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, offset)
 	end
 end
 --------------------------------------------------------------------------------
--- AUTO FARM HEARTBEAT LOOP
+-- UNBROKEN STICKY POSITIONING LOOP (STEPS EVERY FRAME)
+--------------------------------------------------------------------------------
+RS.Stepped:Connect(function()
+	if not autoFarmLowHpOn and not autoFarmAllOn then return end
+	if not char or not hum or hum.Health <= 0 then return end
+
+	local activeTarget = nil
+
+	if autoFarmLowHpOn then
+		activeTarget = getLowHpTarget(targetHealthThreshold)
+	elseif autoFarmAllOn then
+		activeTarget = getAnyTarget()
+	end
+
+	if activeTarget and isTargetAliveAndValid(activeTarget) then
+		positionAtTarget(activeTarget)
+	end
+end)
+
+--------------------------------------------------------------------------------
+-- AUTO FARM HEARTBEAT LOOP (FIRE ABILITIES ONLY)
 --------------------------------------------------------------------------------
 RS.Heartbeat:Connect(function()
 	-- Anti-Slowdown Enforcement
@@ -302,61 +320,36 @@ RS.Heartbeat:Connect(function()
 		end
 	end
 
-	if not canUseCharacter() then return end
+	if not autoFarmLowHpOn and not autoFarmAllOn then return end
+
+	-- Self low-health protection (30 HP or below)
+	if hum and hum.Health <= 30 then
+		if autoFarmLowHpOn and LowHpToggle then LowHpToggle:Set(false) end
+		if autoFarmAllOn and AllPlayersToggle then AllPlayersToggle:Set(false) end
+		autoFarmLowHpOn = false
+		autoFarmAllOn = false
+		currentLockedTarget = nil
+		teleportToSafeSpace()
+		return
+	end
 
 	local cType = getCurrentCharacterType()
 	local autoList = ((cType == "Jason" or cType == "Slasher") and JASON_AUTO_ABILITIES) or (cType == "Shedletsky" and SHEDLETSKY_AUTO_ABILITIES) or {}
 	local abilityTable = ((cType == "Jason" or cType == "Slasher") and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities) or {}
 
-	-- 1. AUTO FARM LOW HEALTH PLAYERS
-	if autoFarmLowHpOn then
-		-- Self low-health protection (30 HP or below)
-		if hum and hum.Health <= 30 then
-			if LowHpToggle then LowHpToggle:Set(false) else autoFarmLowHpOn = false end
-			currentLockedTarget = nil
-			teleportToSafeSpace()
-			return
-		end
-
-		local targetP = getLowHpTarget(targetHealthThreshold)
-		if targetP and isTargetAliveAndValid(targetP) then
-			positionAtTarget(targetP)
-
+	local targetP = currentLockedTarget
+	if targetP and isTargetAliveAndValid(targetP) then
+		if canUseCharacter() then
 			for _, abilityName in ipairs(autoList) do
 				local data = abilityTable[abilityName]
 				if data and (os.clock() - data.LastUsed >= data.Cooldown) then
 					castCharacterAction(abilityName)
 				end
 			end
-		else
-			currentLockedTarget = nil
-			teleportToSafeSpace()
 		end
-
-	-- 2. AUTO FARM ALL PLAYERS
-	elseif autoFarmAllOn then
-		-- Self low-health protection (30 HP or below)
-		if hum and hum.Health <= 30 then
-			if AllPlayersToggle then AllPlayersToggle:Set(false) else autoFarmAllOn = false end
-			currentLockedTarget = nil
-			teleportToSafeSpace()
-			return
-		end
-
-		local targetP = getAnyTarget()
-		if targetP and isTargetAliveAndValid(targetP) then
-			positionAtTarget(targetP)
-
-			for _, abilityName in ipairs(autoList) do
-				local data = abilityTable[abilityName]
-				if data and (os.clock() - data.LastUsed >= data.Cooldown) then
-					castCharacterAction(abilityName)
-				end
-			end
-		else
-			currentLockedTarget = nil
-			teleportToSafeSpace()
-		end
+	else
+		currentLockedTarget = nil
+		teleportToSafeSpace()
 	end
 end)
 
