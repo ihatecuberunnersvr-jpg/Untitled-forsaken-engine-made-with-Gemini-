@@ -119,7 +119,7 @@ local targetHealthThreshold = 20
 local isExecutingAction = false
 local hitDistanceOffset = 3 -- Default distance in studs
 
-local currentLockedTarget = nil -- Persistent target for "Stick to Person"
+local currentLockedTarget = nil -- Persistent target tracking
 
 local LowHpToggle
 local AllPlayersToggle
@@ -133,12 +133,12 @@ local function canUseCharacter()
 	if not char or not hum or hum.Health <= 0 then return false end
 	local cType = getCurrentCharacterType()
 
-	if cType == "Jason" then
+	if cType == "Jason" or cType == "Slasher" then
 		return char:GetAttribute("CanAttack") ~= false and char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true
 	elseif cType == "Shedletsky" then
 		return char:GetAttribute("CanRun") ~= false and char:GetAttribute("CanAttack") ~= false and char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true
 	end
-	return false
+	return true
 end
 
 --------------------------------------------------------------------------------
@@ -186,7 +186,7 @@ end
 local function castCharacterAction(actionName)
 	if isExecutingAction or not canUseCharacter() then return end
 	local cType = getCurrentCharacterType()
-	local abilityTable = (cType == "Jason" and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities)
+	local abilityTable = ((cType == "Jason" or cType == "Slasher") and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities)
 
 	if not abilityTable then return end
 	local data = abilityTable[actionName]
@@ -213,14 +213,14 @@ end
 -- TARGET DETECTION & POSITIONING
 --------------------------------------------------------------------------------
 local function isTargetAliveAndValid(p)
-	if not p or not p.Character or p == player then return false end
+	if not p or not p.Parent or not p.Character or p == player then return false end
 	local tHum = p.Character:FindFirstChild("Humanoid")
 	local tRoot = p.Character:FindFirstChild("HumanoidRootPart")
-	return tHum and tRoot and tHum.Health > 0
+	return tHum and tRoot and tHum.Health > 0 and p.Character:IsDescendantOf(workspace)
 end
 
 local function getLowHpTarget(maxHp)
-	-- If Stick to Person is ON and we have a valid target, stick with them until dead
+	-- If Stick to Person is active, retain target until they die
 	if stickToPersonOn and isTargetAliveAndValid(currentLockedTarget) then
 		return currentLockedTarget
 	end
@@ -246,7 +246,7 @@ local function getLowHpTarget(maxHp)
 end
 
 local function getAnyTarget()
-	-- If Stick to Person is ON and we have a valid target, stick with them until dead
+	-- If Stick to Person is active, retain target until they die
 	if stickToPersonOn and isTargetAliveAndValid(currentLockedTarget) then
 		return currentLockedTarget
 	end
@@ -293,7 +293,7 @@ end
 -- AUTO FARM HEARTBEAT LOOP
 --------------------------------------------------------------------------------
 RS.Heartbeat:Connect(function()
-	-- Shedletsky Anti-Slowdown Enforcement
+	-- Anti-Slowdown Enforcement
 	if char and getCurrentCharacterType() == "Shedletsky" then
 		char:SetAttribute("CanRun", true)
 		char:SetAttribute("Slowed", false)
@@ -305,8 +305,8 @@ RS.Heartbeat:Connect(function()
 	if not canUseCharacter() then return end
 
 	local cType = getCurrentCharacterType()
-	local autoList = (cType == "Jason" and JASON_AUTO_ABILITIES) or (cType == "Shedletsky" and SHEDLETSKY_AUTO_ABILITIES) or {}
-	local abilityTable = (cType == "Jason" and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities) or {}
+	local autoList = ((cType == "Jason" or cType == "Slasher") and JASON_AUTO_ABILITIES) or (cType == "Shedletsky" and SHEDLETSKY_AUTO_ABILITIES) or {}
+	local abilityTable = ((cType == "Jason" or cType == "Slasher") and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities) or {}
 
 	-- 1. AUTO FARM LOW HEALTH PLAYERS
 	if autoFarmLowHpOn then
@@ -319,7 +319,7 @@ RS.Heartbeat:Connect(function()
 		end
 
 		local targetP = getLowHpTarget(targetHealthThreshold)
-		if targetP and targetP.Character then
+		if targetP and isTargetAliveAndValid(targetP) then
 			positionAtTarget(targetP)
 
 			for _, abilityName in ipairs(autoList) do
@@ -344,7 +344,7 @@ RS.Heartbeat:Connect(function()
 		end
 
 		local targetP = getAnyTarget()
-		if targetP and targetP.Character then
+		if targetP and isTargetAliveAndValid(targetP) then
 			positionAtTarget(targetP)
 
 			for _, abilityName in ipairs(autoList) do
