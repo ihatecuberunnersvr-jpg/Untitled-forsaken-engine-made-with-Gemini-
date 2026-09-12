@@ -89,7 +89,7 @@ antiVoidPart.Touched:Connect(function(hit)
 	if char and hit:IsDescendantOf(char) then
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		if hrp then
-			hrp.CFrame = CFrame.new(0, 50, 0) -- Teleport back up to safe height
+			hrp.CFrame = CFrame.new(0, 50, 0)
 		end
 	end
 end)
@@ -139,17 +139,12 @@ local ShedletskyAbilities = {
 }
 
 local NoliAbilities = {
-	["MainAbility"] = {
+	["MainAbility"] = { -- Slash
 		["Cooldown"] = 1.8,
 		["LastUsed"] = 0,
 		["Remote"] = noliFolder and noliFolder:FindFirstChild("NoliAttackRemote")
 	},
-	["AltAbility1"] = {
-		["Cooldown"] = 25,
-		["LastUsed"] = 0,
-		["Remote"] = noliFolder and noliFolder:FindFirstChild("NoliVoidRush")
-	},
-	["AltAbility2"] = {
+	["AltAbility2"] = { -- Nova
 		["Cooldown"] = 0,
 		["LastUsed"] = 0,
 		["Remote"] = noliFolder and noliFolder:FindFirstChild("NoliNova")
@@ -158,7 +153,7 @@ local NoliAbilities = {
 
 local JASON_AUTO_ABILITIES = { "MainAbility", "AltAbility1", "AltAbility2" }
 local SHEDLETSKY_AUTO_ABILITIES = { "Slash", "Fried Chicken" }
-local NOLI_AUTO_ABILITIES = { "MainAbility", "AltAbility1", "AltAbility2" }
+local NOLI_AUTO_ABILITIES = { "MainAbility", "AltAbility2" } -- Strictly Slash & Nova only
 
 local autoFarmLowHpOn = false
 local autoFarmAllOn = false
@@ -166,6 +161,7 @@ local lockInFrontOn = false
 local stickToPersonOn = false
 local targetHealthThreshold = 20
 local hitDistanceOffset = 3
+local MAX_ABILITY_DISTANCE = 15 -- Proximity check limit for abilities
 
 local currentLockedTarget = nil
 
@@ -190,7 +186,7 @@ local function canUseCharacter()
 end
 
 --------------------------------------------------------------------------------
--- SHEDLETSKY & NOLI ANIMATIONS & ACTION HANDLER
+-- ANIMATION & ACTION HANDLER
 --------------------------------------------------------------------------------
 local function playShedletskyAnim()
 	if not char or not hum then return end
@@ -382,33 +378,7 @@ RS.Stepped:Connect(function()
 end)
 
 --------------------------------------------------------------------------------
--- PROXIMITY-ONLY NOLI NOVA SPAMMER LOOP
---------------------------------------------------------------------------------
-task.spawn(function()
-	while task.wait(0.05) do
-		if getCurrentCharacterType() == "Noli" and canUseCharacter() then
-			local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-			if myRoot then
-				local targetP = currentLockedTarget or getAnyTarget()
-				if targetP and isTargetAliveAndValid(targetP) then
-					local tRoot = targetP.Character.HumanoidRootPart
-					local dist = (tRoot.Position - myRoot.Position).Magnitude
-					
-					-- ONLY fires Nova if a target player is nearby (within 35 studs)
-					if dist <= 35 then
-						local novaRemote = NoliAbilities["AltAbility2"].Remote
-						if novaRemote then
-							novaRemote:FireServer(tRoot.Position, true)
-						end
-					end
-				end
-			end
-		end
-	end
-end)
-
---------------------------------------------------------------------------------
--- AUTO FARM HEARTBEAT LOOP (FIRE ABILITIES ONLY)
+-- AUTO FARM HEARTBEAT LOOP (FIRE ABILITIES ONLY WHEN NEARBY)
 --------------------------------------------------------------------------------
 RS.Heartbeat:Connect(function()
 	if char and getCurrentCharacterType() == "Shedletsky" then
@@ -443,15 +413,20 @@ RS.Heartbeat:Connect(function()
 		or {}
 
 	local targetP = currentLockedTarget
-	if targetP and isTargetAliveAndValid(targetP) then
-		if canUseCharacter() then
-			local tRoot = targetP.Character:FindFirstChild("HumanoidRootPart")
-			local targetPos = tRoot and tRoot.Position
+	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
 
-			for _, abilityName in ipairs(autoList) do
-				local data = abilityTable[abilityName]
-				if data and (os.clock() - data.LastUsed >= data.Cooldown) then
-					castCharacterAction(abilityName, targetPos)
+	if targetP and isTargetAliveAndValid(targetP) and myRoot then
+		local tRoot = targetP.Character:FindFirstChild("HumanoidRootPart")
+		if tRoot then
+			local distance = (tRoot.Position - myRoot.Position).Magnitude
+
+			-- Strictly trigger abilities ONLY if within 15 studs of the target
+			if distance <= MAX_ABILITY_DISTANCE and canUseCharacter() then
+				for _, abilityName in ipairs(autoList) do
+					local data = abilityTable[abilityName]
+					if data and (os.clock() - data.LastUsed >= data.Cooldown) then
+						castCharacterAction(abilityName, tRoot.Position)
+					end
 				end
 			end
 		end
