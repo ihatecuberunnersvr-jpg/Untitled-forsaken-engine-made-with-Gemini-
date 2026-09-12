@@ -67,10 +67,40 @@ local function teleportToSafeSpace()
 end
 
 --------------------------------------------------------------------------------
--- CHARACTER ABILITY CONFIGURATIONS (JASON & SHEDLETSKY)
+-- ANTI-VOID SYSTEM
 --------------------------------------------------------------------------------
-local jasonFolder = ReplicatedStorage:WaitForChild("CharacterAbilities", 5) and ReplicatedStorage.CharacterAbilities:FindFirstChild("Jason")
-local shedFolder = ReplicatedStorage:WaitForChild("CharacterAbilities", 5) and ReplicatedStorage.CharacterAbilities:FindFirstChild("Shedletsky")
+local ANTI_VOID_HEIGHT = -150
+local antiVoidPart = workspace:FindFirstChild("AntiVoidPlate")
+
+if not antiVoidPart then
+	antiVoidPart = Instance.new("Part")
+	antiVoidPart.Name = "AntiVoidPlate"
+	antiVoidPart.Size = Vector3.new(10000, 10, 10000)
+	antiVoidPart.CFrame = CFrame.new(0, ANTI_VOID_HEIGHT, 0)
+	antiVoidPart.Anchored = true
+	antiVoidPart.CanCollide = true
+	antiVoidPart.Transparency = 0.6
+	antiVoidPart.Material = Enum.Material.ForceField
+	antiVoidPart.Color = Color3.fromRGB(255, 0, 80)
+	antiVoidPart.Parent = workspace
+end
+
+antiVoidPart.Touched:Connect(function(hit)
+	if char and hit:IsDescendantOf(char) then
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			hrp.CFrame = CFrame.new(0, 50, 0) -- Teleport back up to safe height
+		end
+	end
+end)
+
+--------------------------------------------------------------------------------
+-- CHARACTER ABILITY CONFIGURATIONS (JASON, SHEDLETSKY & NOLI)
+--------------------------------------------------------------------------------
+local charAbilitiesFolder = ReplicatedStorage:WaitForChild("CharacterAbilities", 5)
+local jasonFolder = charAbilitiesFolder and charAbilitiesFolder:FindFirstChild("Jason")
+local shedFolder = charAbilitiesFolder and charAbilitiesFolder:FindFirstChild("Shedletsky")
+local noliFolder = charAbilitiesFolder and charAbilitiesFolder:FindFirstChild("Noli")
 
 local JasonAbilities = {
 	["MainAbility"] = {
@@ -108,17 +138,36 @@ local ShedletskyAbilities = {
 	}
 }
 
+local NoliAbilities = {
+	["MainAbility"] = {
+		["Cooldown"] = 1.8,
+		["LastUsed"] = 0,
+		["Remote"] = noliFolder and noliFolder:FindFirstChild("NoliAttackRemote")
+	},
+	["AltAbility1"] = {
+		["Cooldown"] = 25,
+		["LastUsed"] = 0,
+		["Remote"] = noliFolder and noliFolder:FindFirstChild("NoliVoidRush")
+	},
+	["AltAbility2"] = {
+		["Cooldown"] = 0,
+		["LastUsed"] = 0,
+		["Remote"] = noliFolder and noliFolder:FindFirstChild("NoliNova")
+	}
+}
+
 local JASON_AUTO_ABILITIES = { "MainAbility", "AltAbility1", "AltAbility2" }
 local SHEDLETSKY_AUTO_ABILITIES = { "Slash", "Fried Chicken" }
+local NOLI_AUTO_ABILITIES = { "MainAbility", "AltAbility1", "AltAbility2" }
 
 local autoFarmLowHpOn = false
 local autoFarmAllOn = false
 local lockInFrontOn = false
 local stickToPersonOn = false
 local targetHealthThreshold = 20
-local hitDistanceOffset = 3 -- Default distance in studs
+local hitDistanceOffset = 3
 
-local currentLockedTarget = nil -- Persistent target tracking
+local currentLockedTarget = nil
 
 local LowHpToggle
 local AllPlayersToggle
@@ -132,7 +181,7 @@ local function canUseCharacter()
 	if not char or not hum or hum.Health <= 0 then return false end
 	local cType = getCurrentCharacterType()
 
-	if cType == "Jason" or cType == "Slasher" then
+	if cType == "Jason" or cType == "Slasher" or cType == "Noli" then
 		return char:GetAttribute("CanAttack") ~= false and char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true
 	elseif cType == "Shedletsky" then
 		return char:GetAttribute("CanRun") ~= false and char:GetAttribute("CanAttack") ~= false and char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true
@@ -141,7 +190,7 @@ local function canUseCharacter()
 end
 
 --------------------------------------------------------------------------------
--- SHEDLETSKY ANIMATION & ACTION HANDLER
+-- SHEDLETSKY & NOLI ANIMATIONS & ACTION HANDLER
 --------------------------------------------------------------------------------
 local function playShedletskyAnim()
 	if not char or not hum then return end
@@ -182,10 +231,29 @@ local function playShedletskyAnim()
 	end)
 end
 
-local function castCharacterAction(actionName)
+local function playNoliAnim()
+	if not char or not hum then return end
+	local anim = Instance.new("Animation")
+	local skin = char:GetAttribute("Skin")
+
+	if skin == "RetroNoli" then anim.AnimationId = "rbxassetid://120515916154475"
+	elseif skin == "Clockwork" then anim.AnimationId = "rbxassetid://108021827965381"
+	elseif skin == "NarratorNoli" then anim.AnimationId = "rbxassetid://128744951510910"
+	elseif skin == "Noli4" then anim.AnimationId = "rbxassetid://98438228576241"
+	elseif skin == "EvilTeh" then anim.AnimationId = "rbxassetid://97930480559280"
+	elseif skin == "AdminNoli" then anim.AnimationId = "rbxassetid://126706312443717"
+	elseif skin == "Pastway" or skin == "Fleatway" then anim.AnimationId = "rbxassetid://105540391527912"
+	else anim.AnimationId = "rbxassetid://133721031387826" end
+
+	local track = hum:LoadAnimation(anim)
+	track:Play()
+	track:AdjustSpeed(1.5)
+end
+
+local function castCharacterAction(actionName, targetPosition)
 	if not canUseCharacter() then return end
 	local cType = getCurrentCharacterType()
-	local abilityTable = ((cType == "Jason" or cType == "Slasher") and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities)
+	local abilityTable = ((cType == "Jason" or cType == "Slasher") and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities) or (cType == "Noli" and NoliAbilities)
 
 	if not abilityTable then return end
 	local data = abilityTable[actionName]
@@ -197,9 +265,16 @@ local function castCharacterAction(actionName)
 
 			if cType == "Shedletsky" and actionName == "Slash" then
 				playShedletskyAnim()
+			elseif cType == "Noli" and actionName == "MainAbility" then
+				playNoliAnim()
 			end
 
-			data.Remote:FireServer()
+			if cType == "Noli" and actionName == "AltAbility2" then
+				local aimPos = targetPosition or (workspace.Camera.CFrame * CFrame.new(0, 0, -500)).Position
+				data.Remote:FireServer(aimPos, true)
+			else
+				data.Remote:FireServer()
+			end
 		end
 	end
 end
@@ -272,7 +347,6 @@ local function positionAtTarget(targetPlayer)
 
 	if not myRoot or not targetRoot then return end
 
-	-- Disable player collision so models don't shove each other off
 	for _, part in ipairs(char:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.CanCollide = false
@@ -308,10 +382,35 @@ RS.Stepped:Connect(function()
 end)
 
 --------------------------------------------------------------------------------
+-- PROXIMITY-ONLY NOLI NOVA SPAMMER LOOP
+--------------------------------------------------------------------------------
+task.spawn(function()
+	while task.wait(0.05) do
+		if getCurrentCharacterType() == "Noli" and canUseCharacter() then
+			local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+			if myRoot then
+				local targetP = currentLockedTarget or getAnyTarget()
+				if targetP and isTargetAliveAndValid(targetP) then
+					local tRoot = targetP.Character.HumanoidRootPart
+					local dist = (tRoot.Position - myRoot.Position).Magnitude
+					
+					-- ONLY fires Nova if a target player is nearby (within 35 studs)
+					if dist <= 35 then
+						local novaRemote = NoliAbilities["AltAbility2"].Remote
+						if novaRemote then
+							novaRemote:FireServer(tRoot.Position, true)
+						end
+					end
+				end
+			end
+		end
+	end
+end)
+
+--------------------------------------------------------------------------------
 -- AUTO FARM HEARTBEAT LOOP (FIRE ABILITIES ONLY)
 --------------------------------------------------------------------------------
 RS.Heartbeat:Connect(function()
-	-- Anti-Slowdown Enforcement
 	if char and getCurrentCharacterType() == "Shedletsky" then
 		char:SetAttribute("CanRun", true)
 		char:SetAttribute("Slowed", false)
@@ -322,7 +421,6 @@ RS.Heartbeat:Connect(function()
 
 	if not autoFarmLowHpOn and not autoFarmAllOn then return end
 
-	-- Self low-health protection (30 HP or below)
 	if hum and hum.Health <= 30 then
 		if autoFarmLowHpOn and LowHpToggle then LowHpToggle:Set(false) end
 		if autoFarmAllOn and AllPlayersToggle then AllPlayersToggle:Set(false) end
@@ -334,16 +432,26 @@ RS.Heartbeat:Connect(function()
 	end
 
 	local cType = getCurrentCharacterType()
-	local autoList = ((cType == "Jason" or cType == "Slasher") and JASON_AUTO_ABILITIES) or (cType == "Shedletsky" and SHEDLETSKY_AUTO_ABILITIES) or {}
-	local abilityTable = ((cType == "Jason" or cType == "Slasher") and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities) or {}
+	local autoList = ((cType == "Jason" or cType == "Slasher") and JASON_AUTO_ABILITIES) 
+		or (cType == "Shedletsky" and SHEDLETSKY_AUTO_ABILITIES) 
+		or (cType == "Noli" and NOLI_AUTO_ABILITIES) 
+		or {}
+
+	local abilityTable = ((cType == "Jason" or cType == "Slasher") and JasonAbilities) 
+		or (cType == "Shedletsky" and ShedletskyAbilities) 
+		or (cType == "Noli" and NoliAbilities) 
+		or {}
 
 	local targetP = currentLockedTarget
 	if targetP and isTargetAliveAndValid(targetP) then
 		if canUseCharacter() then
+			local tRoot = targetP.Character:FindFirstChild("HumanoidRootPart")
+			local targetPos = tRoot and tRoot.Position
+
 			for _, abilityName in ipairs(autoList) do
 				local data = abilityTable[abilityName]
 				if data and (os.clock() - data.LastUsed >= data.Cooldown) then
-					castCharacterAction(abilityName)
+					castCharacterAction(abilityName, targetPos)
 				end
 			end
 		end
