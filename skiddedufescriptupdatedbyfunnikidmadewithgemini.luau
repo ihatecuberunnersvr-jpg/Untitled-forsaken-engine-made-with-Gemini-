@@ -719,40 +719,73 @@ CombatTab:CreateToggle({
 })
 
 --------------------------------------------------------------------------------
--- FLY SYSTEM
+-- FLY SYSTEM (FIXED)
 --------------------------------------------------------------------------------
 local flying = false
 local flySpeed = 50
+local flyBV = nil
+local flyBG = nil
+local flyConnection = nil
+
+local function stopFly()
+	flying = false
+	
+	if flyConnection then
+		flyConnection:Disconnect()
+		flyConnection = nil
+	end
+
+	if flyBV then
+		flyBV:Destroy()
+		flyBV = nil
+	end
+
+	if flyBG then
+		flyBG:Destroy()
+		flyBG = nil
+	end
+
+	local character = player.Character
+	if character then
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.PlatformStand = false
+		end
+	end
+end
 
 local function startFly()
+	stopFly()
+
 	local character = player.Character or player.CharacterAdded:Wait()
-	local root = character:WaitForChild("HumanoidRootPart")
-	local humanoid = character:WaitForChild("Humanoid")
+	local root = character:WaitForChild("HumanoidRootPart", 5)
+	local humanoid = character:WaitForChild("Humanoid", 5)
 
-	local bv = Instance.new("BodyVelocity")
-	bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-	bv.Velocity = Vector3.zero
-	bv.Parent = root
+	if not root or not humanoid then return end
 
-	local bg = Instance.new("BodyGyro")
-	bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-	bg.CFrame = root.CFrame
-	bg.Parent = root
+	flyBV = Instance.new("BodyVelocity")
+	flyBV.Name = "FlyVelocity"
+	flyBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	flyBV.Velocity = Vector3.zero
+	flyBV.Parent = root
+
+	flyBG = Instance.new("BodyGyro")
+	flyBG.Name = "FlyGyro"
+	flyBG.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+	flyBG.CFrame = camera.CFrame
+	flyBG.Parent = root
 
 	flying = true
 	humanoid.PlatformStand = true
 
-	local renderConnection
-	renderConnection = RS.RenderStepped:Connect(function()
-		if not flying or not root or not root.Parent then
-			bv:Destroy()
-			bg:Destroy()
-			humanoid.PlatformStand = false
-			renderConnection:Disconnect()
+	flyConnection = RS.RenderStepped:Connect(function()
+		if not flying or not root or not root.Parent or not humanoid or humanoid.Health <= 0 then
+			stopFly()
 			return
 		end
 
 		local moveDir = Vector3.zero
+
 		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
 		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
 		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
@@ -760,14 +793,19 @@ local function startFly()
 		if UserInputService:IsKeyDown(Enum.KeyCode.E) then moveDir = moveDir + Vector3.new(0, 1, 0) end
 		if UserInputService:IsKeyDown(Enum.KeyCode.Q) then moveDir = moveDir - Vector3.new(0, 1, 0) end
 
-		bg.CFrame = camera.CFrame
-		bv.Velocity = moveDir.Magnitude > 0 and (moveDir.Unit * flySpeed) or Vector3.zero
+		flyBG.CFrame = camera.CFrame
+
+		if moveDir.Magnitude > 0 then
+			flyBV.Velocity = moveDir.Unit * flySpeed
+		else
+			flyBV.Velocity = Vector3.zero
+		end
 	end)
 end
 
-local function stopFly()
-	flying = false
-end
+player.CharacterAdded:Connect(function()
+	stopFly()
+end)
 
 UtilityTab:CreateToggle({
    Name = "Fly",
