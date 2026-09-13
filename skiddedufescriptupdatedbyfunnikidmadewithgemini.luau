@@ -358,7 +358,7 @@ local function positionAtTarget(targetPlayer)
 	end
 end
 --------------------------------------------------------------------------------
--- UNBROKEN STICKY POSITIONING LOOP
+-- HEARTBEAT LOOPS & UI TABS
 --------------------------------------------------------------------------------
 RS.Stepped:Connect(function()
 	if not autoFarmLowHpOn and not autoFarmAllOn then return end
@@ -377,9 +377,6 @@ RS.Stepped:Connect(function()
 	end
 end)
 
---------------------------------------------------------------------------------
--- AUTO FARM HEARTBEAT LOOP (FIRE ABILITIES ONLY WHEN NEARBY)
---------------------------------------------------------------------------------
 RS.Heartbeat:Connect(function()
 	if char and getCurrentCharacterType() == "Shedletsky" then
 		char:SetAttribute("CanRun", true)
@@ -514,7 +511,7 @@ AutoFarmTab:CreateButton({
 })
 
 --------------------------------------------------------------------------------
--- RELIABLE BLUE HIGHLIGHT + TEXT ESP
+-- ESP SYSTEM
 --------------------------------------------------------------------------------
 local espOn = false
 local activeESP = {}
@@ -719,12 +716,10 @@ CombatTab:CreateToggle({
 })
 
 --------------------------------------------------------------------------------
--- FLY SYSTEM (FIXED)
+-- RELIABLE CFrame FLY SYSTEM
 --------------------------------------------------------------------------------
 local flying = false
 local flySpeed = 50
-local flyBV = nil
-local flyBG = nil
 local flyConnection = nil
 
 local function stopFly()
@@ -735,19 +730,14 @@ local function stopFly()
 		flyConnection = nil
 	end
 
-	if flyBV then
-		flyBV:Destroy()
-		flyBV = nil
-	end
-
-	if flyBG then
-		flyBG:Destroy()
-		flyBG = nil
-	end
-
 	local character = player.Character
 	if character then
+		local root = character:FindFirstChild("HumanoidRootPart")
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		
+		if root then
+			root.Anchored = false
+		end
 		if humanoid then
 			humanoid.PlatformStand = false
 		end
@@ -763,43 +753,35 @@ local function startFly()
 
 	if not root or not humanoid then return end
 
-	flyBV = Instance.new("BodyVelocity")
-	flyBV.Name = "FlyVelocity"
-	flyBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-	flyBV.Velocity = Vector3.zero
-	flyBV.Parent = root
-
-	flyBG = Instance.new("BodyGyro")
-	flyBG.Name = "FlyGyro"
-	flyBG.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-	flyBG.CFrame = camera.CFrame
-	flyBG.Parent = root
-
 	flying = true
 	humanoid.PlatformStand = true
 
-	flyConnection = RS.RenderStepped:Connect(function()
+	flyConnection = RS.RenderStepped:Connect(function(deltaTime)
 		if not flying or not root or not root.Parent or not humanoid or humanoid.Health <= 0 then
 			stopFly()
 			return
 		end
 
 		local moveDir = Vector3.zero
+		local camCF = camera.CFrame
 
-		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
-		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
-		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
-		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
-		if UserInputService:IsKeyDown(Enum.KeyCode.E) then moveDir = moveDir + Vector3.new(0, 1, 0) end
-		if UserInputService:IsKeyDown(Enum.KeyCode.Q) then moveDir = moveDir - Vector3.new(0, 1, 0) end
-
-		flyBG.CFrame = camera.CFrame
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCF.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.E) or UserInputService:IsKeyDown(Enum.KeyCode.Space) then 
+			moveDir = moveDir + Vector3.new(0, 1, 0) 
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Q) or UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then 
+			moveDir = moveDir - Vector3.new(0, 1, 0) 
+		end
 
 		if moveDir.Magnitude > 0 then
-			flyBV.Velocity = moveDir.Unit * flySpeed
-		else
-			flyBV.Velocity = Vector3.zero
+			moveDir = moveDir.Unit
 		end
+
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.CFrame = CFrame.new(root.Position + (moveDir * flySpeed * deltaTime), root.Position + camCF.LookVector)
 	end)
 end
 
