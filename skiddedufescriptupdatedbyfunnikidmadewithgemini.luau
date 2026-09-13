@@ -153,7 +153,7 @@ local NoliAbilities = {
 
 local JASON_AUTO_ABILITIES = { "MainAbility", "AltAbility1", "AltAbility2" }
 local SHEDLETSKY_AUTO_ABILITIES = { "Slash", "Fried Chicken" }
-local NOLI_AUTO_ABILITIES = { "MainAbility", "AltAbility2" }
+local NOLI_AUTO_ABILITIES = { "MainAbility", "AltAbility2" } -- Strictly Slash & Nova only
 
 local autoFarmLowHpOn = false
 local autoFarmAllOn = false
@@ -161,7 +161,7 @@ local lockInFrontOn = false
 local stickToPersonOn = false
 local targetHealthThreshold = 20
 local hitDistanceOffset = 3
-local MAX_ABILITY_DISTANCE = 15
+local MAX_ABILITY_DISTANCE = 15 -- Proximity check limit for abilities
 
 local currentLockedTarget = nil
 
@@ -358,7 +358,7 @@ local function positionAtTarget(targetPlayer)
 	end
 end
 --------------------------------------------------------------------------------
--- HEARTBEAT LOOPS & UI TABS
+-- UNBROKEN STICKY POSITIONING LOOP (STEPS EVERY FRAME)
 --------------------------------------------------------------------------------
 RS.Stepped:Connect(function()
 	if not autoFarmLowHpOn and not autoFarmAllOn then return end
@@ -377,6 +377,9 @@ RS.Stepped:Connect(function()
 	end
 end)
 
+--------------------------------------------------------------------------------
+-- AUTO FARM HEARTBEAT LOOP (FIRE ABILITIES ONLY WHEN NEARBY)
+--------------------------------------------------------------------------------
 RS.Heartbeat:Connect(function()
 	if char and getCurrentCharacterType() == "Shedletsky" then
 		char:SetAttribute("CanRun", true)
@@ -417,6 +420,7 @@ RS.Heartbeat:Connect(function()
 		if tRoot then
 			local distance = (tRoot.Position - myRoot.Position).Magnitude
 
+			-- Strictly trigger abilities ONLY if within 15 studs of the target
 			if distance <= MAX_ABILITY_DISTANCE and canUseCharacter() then
 				for _, abilityName in ipairs(autoList) do
 					local data = abilityTable[abilityName]
@@ -511,7 +515,7 @@ AutoFarmTab:CreateButton({
 })
 
 --------------------------------------------------------------------------------
--- ESP SYSTEM
+-- RELIABLE BLUE HIGHLIGHT + TEXT ESP
 --------------------------------------------------------------------------------
 local espOn = false
 local activeESP = {}
@@ -712,103 +716,6 @@ CombatTab:CreateToggle({
       else
          disableLock()
       end
-   end,
-})
-
---------------------------------------------------------------------------------
--- MOBILE-COMPATIBLE BODY MOVER FLY
---------------------------------------------------------------------------------
-local flying = false
-local flySpeed = 50
-local flyConnection = nil
-local currentBV, currentBG
-
-local function stopFly()
-	flying = false
-
-	if flyConnection then
-		flyConnection:Disconnect()
-		flyConnection = nil
-	end
-
-	if currentBV then currentBV:Destroy() currentBV = nil end
-	if currentBG then currentBG:Destroy() currentBG = nil end
-
-	local character = player.Character
-	if character then
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			humanoid.PlatformStand = false
-		end
-	end
-end
-
-local function startFly()
-	stopFly()
-
-	local character = player.Character or player.CharacterAdded:Wait()
-	local root = character:WaitForChild("HumanoidRootPart", 5)
-	local humanoid = character:WaitForChild("Humanoid", 5)
-
-	if not root or not humanoid then return end
-
-	flying = true
-	humanoid.PlatformStand = true
-
-	currentBV = Instance.new("BodyVelocity")
-	currentBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-	currentBV.Velocity = Vector3.zero
-	currentBV.Parent = root
-
-	currentBG = Instance.new("BodyGyro")
-	currentBG.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-	currentBG.CFrame = camera.CFrame
-	currentBG.Parent = root
-
-	flyConnection = RS.RenderStepped:Connect(function()
-		if not flying or not root or not root.Parent or not humanoid or humanoid.Health <= 0 then
-			stopFly()
-			return
-		end
-
-		currentBG.CFrame = camera.CFrame
-
-		local moveDir = humanoid.MoveDirection
-		if moveDir.Magnitude > 0 then
-			local flyVector = (camera.CFrame.LookVector * moveDir.Z * -1) + (camera.CFrame.RightVector * moveDir.X)
-			currentBV.Velocity = flyVector.Unit * flySpeed
-		else
-			currentBV.Velocity = Vector3.zero
-		end
-	end)
-end
-
-player.CharacterAdded:Connect(function()
-	stopFly()
-end)
-
-UtilityTab:CreateToggle({
-   Name = "Fly",
-   CurrentValue = false,
-   Flag = "Fly_Toggle",
-   Callback = function(Value)
-      if Value then
-         startFly()
-      else
-         stopFly()
-      end
-   end,
-})
-
-UtilityTab:CreateSlider({
-   Name = "Fly Speed",
-   Range = {10, 300},
-   Increment = 5,
-   Suffix = " Speed",
-   CurrentValue = 50,
-   Flag = "FlySpeed_Slider",
-   Callback = function(Value)
-      flySpeed = Value
    end,
 })
 
