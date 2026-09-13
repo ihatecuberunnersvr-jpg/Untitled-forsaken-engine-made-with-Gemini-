@@ -716,15 +716,70 @@ CombatTab:CreateToggle({
 })
 
 --------------------------------------------------------------------------------
--- RELIABLE CFrame FLY SYSTEM
+-- UNIVERSAL FLY SYSTEM (PC & MOBILE COMPATIBLE)
 --------------------------------------------------------------------------------
 local flying = false
 local flySpeed = 50
 local flyConnection = nil
+local upPressed = false
+local downPressed = false
+local mobileFlyGui = nil
+
+local function removeMobileControls()
+	if mobileFlyGui then
+		mobileFlyGui:Destroy()
+		mobileFlyGui = nil
+	end
+end
+
+local function setupMobileControls()
+	removeMobileControls()
+	local pGui = player:FindFirstChildOfClass("PlayerGui")
+	if not pGui then return end
+
+	mobileFlyGui = Instance.new("ScreenGui")
+	mobileFlyGui.Name = "MobileFlyGui"
+	mobileFlyGui.ResetOnSpawn = false
+	mobileFlyGui.Parent = pGui
+
+	local upBtn = Instance.new("TextButton")
+	upBtn.Name = "FlyUp"
+	upBtn.Size = UDim2.new(0, 60, 0, 60)
+	upBtn.Position = UDim2.new(1, -80, 0.5, -70)
+	upBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+	upBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	upBtn.Text = "▲ UP"
+	upBtn.Font = Enum.Font.SourceSansBold
+	upBtn.TextSize = 16
+	upBtn.Parent = mobileFlyGui
+
+	local downBtn = Instance.new("TextButton")
+	downBtn.Name = "FlyDown"
+	downBtn.Size = UDim2.new(0, 60, 0, 60)
+	downBtn.Position = UDim2.new(1, -80, 0.5, 0)
+	downBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+	downBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	downBtn.Text = "▼ DOWN"
+	downBtn.Font = Enum.Font.SourceSansBold
+	downBtn.TextSize = 16
+	downBtn.Parent = mobileFlyGui
+
+	upBtn.MouseButton1Down:Connect(function() upPressed = true end)
+	upBtn.MouseButton1Up:Connect(function() upPressed = false end)
+	upBtn.TouchLongPress:Connect(function() upPressed = true end)
+
+	downBtn.MouseButton1Down:Connect(function() downPressed = true end)
+	downBtn.MouseButton1Up:Connect(function() downPressed = false end)
+	downBtn.TouchLongPress:Connect(function() downPressed = true end)
+end
 
 local function stopFly()
 	flying = false
+	upPressed = false
+	downPressed = false
 	
+	removeMobileControls()
+
 	if flyConnection then
 		flyConnection:Disconnect()
 		flyConnection = nil
@@ -756,25 +811,37 @@ local function startFly()
 	flying = true
 	humanoid.PlatformStand = true
 
+	if UserInputService.TouchEnabled then
+		setupMobileControls()
+	end
+
 	flyConnection = RS.RenderStepped:Connect(function(deltaTime)
 		if not flying or not root or not root.Parent or not humanoid or humanoid.Health <= 0 then
 			stopFly()
 			return
 		end
 
-		local moveDir = Vector3.zero
 		local camCF = camera.CFrame
+		local moveDir = Vector3.zero
 
-		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
-		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
-		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCF.RightVector end
-		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
+		-- Mobile Joystick & Keyboard WASD direction detection
+		local moveInput = humanoid.MoveDirection
+		if moveInput.Magnitude > 0 then
+			local flatCam = CFrame.lookAt(Vector3.zero, Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z).Unit)
+			moveDir = flatCam:VectorToWorldSpace(flatCam:VectorToObjectSpace(moveInput))
+		end
+
+		-- Ascend/Descend support for PC (Keyboard)
 		if UserInputService:IsKeyDown(Enum.KeyCode.E) or UserInputService:IsKeyDown(Enum.KeyCode.Space) then 
 			moveDir = moveDir + Vector3.new(0, 1, 0) 
 		end
 		if UserInputService:IsKeyDown(Enum.KeyCode.Q) or UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then 
 			moveDir = moveDir - Vector3.new(0, 1, 0) 
 		end
+
+		-- Ascend/Descend support for Mobile Buttons
+		if upPressed then moveDir = moveDir + Vector3.new(0, 1, 0) end
+		if downPressed then moveDir = moveDir - Vector3.new(0, 1, 0) end
 
 		if moveDir.Magnitude > 0 then
 			moveDir = moveDir.Unit
