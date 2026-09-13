@@ -153,7 +153,7 @@ local NoliAbilities = {
 
 local JASON_AUTO_ABILITIES = { "MainAbility", "AltAbility1", "AltAbility2" }
 local SHEDLETSKY_AUTO_ABILITIES = { "Slash", "Fried Chicken" }
-local NOLI_AUTO_ABILITIES = { "MainAbility", "AltAbility2" } -- Strictly Slash & Nova only
+local NOLI_AUTO_ABILITIES = { "MainAbility", "AltAbility2" }
 
 local autoFarmLowHpOn = false
 local autoFarmAllOn = false
@@ -161,7 +161,7 @@ local lockInFrontOn = false
 local stickToPersonOn = false
 local targetHealthThreshold = 20
 local hitDistanceOffset = 3
-local MAX_ABILITY_DISTANCE = 15 -- Proximity check limit for abilities
+local MAX_ABILITY_DISTANCE = 15
 
 local currentLockedTarget = nil
 
@@ -358,7 +358,7 @@ local function positionAtTarget(targetPlayer)
 	end
 end
 --------------------------------------------------------------------------------
--- UNBROKEN STICKY POSITIONING LOOP (STEPS EVERY FRAME)
+-- UNBROKEN STICKY POSITIONING LOOP
 --------------------------------------------------------------------------------
 RS.Stepped:Connect(function()
 	if not autoFarmLowHpOn and not autoFarmAllOn then return end
@@ -420,7 +420,6 @@ RS.Heartbeat:Connect(function()
 		if tRoot then
 			local distance = (tRoot.Position - myRoot.Position).Magnitude
 
-			-- Strictly trigger abilities ONLY if within 15 studs of the target
 			if distance <= MAX_ABILITY_DISTANCE and canUseCharacter() then
 				for _, abilityName in ipairs(autoList) do
 					local data = abilityTable[abilityName]
@@ -716,6 +715,82 @@ CombatTab:CreateToggle({
       else
          disableLock()
       end
+   end,
+})
+
+--------------------------------------------------------------------------------
+-- FLY SYSTEM
+--------------------------------------------------------------------------------
+local flying = false
+local flySpeed = 50
+
+local function startFly()
+	local character = player.Character or player.CharacterAdded:Wait()
+	local root = character:WaitForChild("HumanoidRootPart")
+	local humanoid = character:WaitForChild("Humanoid")
+
+	local bv = Instance.new("BodyVelocity")
+	bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	bv.Velocity = Vector3.zero
+	bv.Parent = root
+
+	local bg = Instance.new("BodyGyro")
+	bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+	bg.CFrame = root.CFrame
+	bg.Parent = root
+
+	flying = true
+	humanoid.PlatformStand = true
+
+	local renderConnection
+	renderConnection = RS.RenderStepped:Connect(function()
+		if not flying or not root or not root.Parent then
+			bv:Destroy()
+			bg:Destroy()
+			humanoid.PlatformStand = false
+			renderConnection:Disconnect()
+			return
+		end
+
+		local moveDir = Vector3.zero
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.E) then moveDir = moveDir + Vector3.new(0, 1, 0) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Q) then moveDir = moveDir - Vector3.new(0, 1, 0) end
+
+		bg.CFrame = camera.CFrame
+		bv.Velocity = moveDir.Magnitude > 0 and (moveDir.Unit * flySpeed) or Vector3.zero
+	end)
+end
+
+local function stopFly()
+	flying = false
+end
+
+UtilityTab:CreateToggle({
+   Name = "Fly",
+   CurrentValue = false,
+   Flag = "Fly_Toggle",
+   Callback = function(Value)
+      if Value then
+         startFly()
+      else
+         stopFly()
+      end
+   end,
+})
+
+UtilityTab:CreateSlider({
+   Name = "Fly Speed",
+   Range = {10, 300},
+   Increment = 5,
+   Suffix = " Speed",
+   CurrentValue = 50,
+   Flag = "FlySpeed_Slider",
+   Callback = function(Value)
+      flySpeed = Value
    end,
 })
 
