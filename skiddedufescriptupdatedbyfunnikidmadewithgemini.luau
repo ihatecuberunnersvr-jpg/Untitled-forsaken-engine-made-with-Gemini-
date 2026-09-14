@@ -753,15 +753,21 @@ RS.RenderStepped:Connect(function()
 end)
 
 --------------------------------------------------------------------------------
--- ANIMATION INVISIBILITY SYSTEM
+-- INVISIBILITY SYSTEMS (LEGACY & NEW DISAPPEAR)
 --------------------------------------------------------------------------------
+-- LEGACY INVISIBILITY SYSTEM (WITH NOCLIP INTEGRATED)
 local invisOn = false
 local invisTrack = nil
 local originalIds = {}
+local legacyNoclipConn = nil
 local INVIS_ID = "rbxassetid://99789196955252"
 
 local function stopInvisAnim()
 	invisOn = false
+	if legacyNoclipConn then
+		legacyNoclipConn:Disconnect()
+		legacyNoclipConn = nil
+	end
 	if invisTrack then
 		invisTrack:Stop()
 		invisTrack:Destroy()
@@ -811,6 +817,16 @@ local function startInvisAnim()
 	invisTrack.Priority = Enum.AnimationPriority.Action4
 	invisTrack.Looped = true
 	invisTrack:Play()
+
+	-- Legacy Noclip Connection
+	legacyNoclipConn = RS.Stepped:Connect(function()
+		if not invisOn or not player.Character then return end
+		for _, v in pairs(player.Character:GetDescendants()) do
+			if v:IsA("BasePart") and v.CanCollide and v.Name ~= "HumanoidRootPart" then
+				v.CanCollide = false
+			end
+		end
+	end)
 end
 
 player.CharacterAdded:Connect(function()
@@ -821,15 +837,114 @@ player.CharacterAdded:Connect(function()
 end)
 
 UtilityTab:CreateToggle({
-   Name = "Animation Invisibility",
+   Name = "Legacy Invisibility",
    CurrentValue = false,
-   Flag = "Invis_Toggle",
+   Flag = "LegacyInvis_Toggle",
    Callback = function(Value)
       if Value then
          startInvisAnim()
       else
          stopInvisAnim()
       end
+   end,
+})
+
+--------------------------------------------------------------------------------
+-- NEW INVISIBILITY (DISAPPEAR CORE) SYSTEM
+--------------------------------------------------------------------------------
+local noclip_connection = nil
+local camera_connection = nil
+local loadedanim = nil
+
+local function ApplyInvisibility(bool)
+	local char = player.Character or player.CharacterAdded:Wait()
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+
+	if bool == false then
+		task.spawn(function()
+			if hum then
+				for _, v in next, hum:GetPlayingAnimationTracks() do
+					v.Priority = Enum.AnimationPriority.Core
+					v:AdjustSpeed(0)
+					v:Stop(0)
+				end
+			end
+		end)
+
+		if noclip_connection then
+			noclip_connection:Disconnect()
+			noclip_connection = nil
+		end
+
+		if camera_connection then
+			camera_connection:Disconnect()
+			camera_connection = nil
+			pcall(function()
+				if hum then
+					workspace.CurrentCamera.CameraSubject = hum
+				end
+			end)
+		end
+	else
+		local function nocollision()
+			local currentchar = player.Character
+			if not currentchar then return end
+
+			for _, v in pairs(currentchar:GetDescendants()) do
+				if v:IsA("BasePart") and v.CanCollide and v.Name ~= "HumanoidRootPart" then
+					v.CanCollide = false
+				end
+			end
+
+			local root = currentchar:FindFirstChild("HumanoidRootPart")
+			if root then
+				root.CanCollide = true
+			end
+		end
+
+		if noclip_connection then
+			noclip_connection:Disconnect()
+			noclip_connection = nil
+		end
+		noclip_connection = RS.Stepped:Connect(nocollision)
+
+		if hrp then
+			workspace.CurrentCamera.CameraSubject = hrp
+			if camera_connection then
+				camera_connection:Disconnect()
+				camera_connection = nil
+			end
+			camera_connection = workspace.CurrentCamera:GetPropertyChangedSignal("CameraSubject"):Connect(function()
+				if hrp then
+					workspace.CurrentCamera.CameraSubject = hrp
+				end
+			end)
+		end
+
+		local Anim = Instance.new("Animation")
+		Anim.AnimationId = "rbxassetid://105781160624925"
+
+		if hum then
+			loadedanim = hum:LoadAnimation(Anim)
+			loadedanim.Priority = Enum.AnimationPriority.Action4
+
+			repeat task.wait() until loadedanim.Length > 0
+			loadedanim:Play()
+
+			repeat task.wait() until loadedanim.IsPlaying
+			loadedanim:AdjustSpeed(0)
+			loadedanim.TimePosition = 0
+		end
+	end
+end
+
+UtilityTab:CreateToggle({
+   Name = "New Invisibility",
+   CurrentValue = false,
+   Flag = "NewInvis_Toggle",
+   Callback = function(Value)
+      ApplyInvisibility(Value)
    end,
 })
 
