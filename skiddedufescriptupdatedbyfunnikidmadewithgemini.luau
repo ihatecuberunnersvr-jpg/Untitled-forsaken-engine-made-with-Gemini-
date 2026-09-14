@@ -1,14 +1,39 @@
---------------------------------------------------------------------------------
--- SERVICES & LOCAL PLAYER SETUP
---------------------------------------------------------------------------------
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local player = game.Players.LocalPlayer
 local Players = game:GetService("Players")
 local RS = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
+--// RAYFIELD WINDOW SETUP
+local Window = Rayfield:CreateWindow({
+   Name = "UFE Hub",
+   LoadingTitle = "UFE Hub Interface",
+   LoadingSubtitle = "by Assistant",
+   ConfigurationSaving = {
+      Enabled = false,
+   },
+   Discord = {
+      Enabled = false,
+   },
+   KeySystem = false
+})
+
+--// TABS
+local CombatTab = Window:CreateTab("Combat", 4483362458)
+local AutoFarmTab = Window:CreateTab("Auto Farm", 4483362458)
+local ESPTab = Window:CreateTab("ESP", 4483362458)
+local UtilityTab = Window:CreateTab("Movement & Misc", 4483362458)
+
+--------------------------------------------------------------------------------
+-- CHARACTER & STATE TRACKING
+--------------------------------------------------------------------------------
 local char = player.Character or player.CharacterAdded:Wait()
 local hum = char:WaitForChild("Humanoid")
 
@@ -18,152 +43,270 @@ player.CharacterAdded:Connect(function(c)
 end)
 
 --------------------------------------------------------------------------------
--- UI FRAMEWORK INITIALIZATION (RAYFIELD)
+-- SAFE SPACE SETUP
 --------------------------------------------------------------------------------
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local SAFE_SPACE_CFRAME = CFrame.new(0, 5000, 0)
+local safeSpacePart = workspace:FindFirstChild("SafeSpaceBaseplate")
 
-local Window = Rayfield:CreateWindow({
-   Name = "Universal Script Hub",
-   LoadingTitle = "Loading Hub...",
-   LoadingSubtitle = "by Assistant",
-   ConfigurationSaving = {
-      Enabled = false,
-      FolderName = nil,
-      FileName = "HubConfig"
-   },
-   Discord = {
-      Enabled = false,
-      Invite = "noinvitelink",
-      RememberJoins = true
-   },
-   KeySystem = false
-})
+if not safeSpacePart then
+	safeSpacePart = Instance.new("Part")
+	safeSpacePart.Name = "SafeSpaceBaseplate"
+	safeSpacePart.Size = Vector3.new(200, 5, 200)
+	safeSpacePart.CFrame = SAFE_SPACE_CFRAME
+	safeSpacePart.Anchored = true
+	safeSpacePart.Material = Enum.Material.SmoothPlastic
+	safeSpacePart.Color = Color3.fromRGB(40, 40, 45)
+	safeSpacePart.Parent = workspace
+end
 
-local AutoFarmTab = Window:CreateTab("Auto Farm", 4483362458)
-local CombatTab   = Window:CreateTab("Combat", 4483362458)
-local ESPTab      = Window:CreateTab("ESP", 4483362458)
-local UtilityTab  = Window:CreateTab("Utility", 4483362458)
+local function teleportToSafeSpace()
+	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+	if myRoot then
+		myRoot.CFrame = SAFE_SPACE_CFRAME * CFrame.new(0, 5, 0)
+	end
+end
 
 --------------------------------------------------------------------------------
--- GLOBAL STATE & CONSTANTS
+-- ANTI-VOID SYSTEM
 --------------------------------------------------------------------------------
-local autoFarmLowHpOn = false
-local autoFarmAllOn   = false
-local lockInFrontOn   = false
-local stickToPersonOn = false
+local ANTI_VOID_HEIGHT = -150
+local antiVoidPart = workspace:FindFirstChild("AntiVoidPlate")
 
-local hitDistanceOffset = 3
-local targetHealthThreshold = 20
-local MAX_ABILITY_DISTANCE = 30
-local currentLockedTarget = nil
+if not antiVoidPart then
+	antiVoidPart = Instance.new("Part")
+	antiVoidPart.Name = "AntiVoidPlate"
+	antiVoidPart.Size = Vector3.new(10000, 10, 10000)
+	antiVoidPart.CFrame = CFrame.new(0, ANTI_VOID_HEIGHT, 0)
+	antiVoidPart.Anchored = true
+	antiVoidPart.CanCollide = true
+	antiVoidPart.Transparency = 0.6
+	antiVoidPart.Material = Enum.Material.ForceField
+	antiVoidPart.Color = Color3.fromRGB(255, 0, 80)
+	antiVoidPart.Parent = workspace
+end
 
-local LowHpToggle, AllPlayersToggle
-
-local SAFE_SPACE_CFRAME = CFrame.new(-1119.03076171875, 894.944580078125 + 6, -85.89985656738281)
+antiVoidPart.Touched:Connect(function(hit)
+	if char and hit:IsDescendantOf(char) then
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			hrp.CFrame = CFrame.new(0, 50, 0)
+		end
+	end
+end)
 
 --------------------------------------------------------------------------------
--- ABILITY TABLES & COOLDOWNS
+-- CHARACTER ABILITY CONFIGURATIONS (JASON, SHEDLETSKY & NOLI)
 --------------------------------------------------------------------------------
+local charAbilitiesFolder = ReplicatedStorage:WaitForChild("CharacterAbilities", 5)
+local jasonFolder = charAbilitiesFolder and charAbilitiesFolder:FindFirstChild("Jason")
+local shedFolder = charAbilitiesFolder and charAbilitiesFolder:FindFirstChild("Shedletsky")
+local noliFolder = charAbilitiesFolder and charAbilitiesFolder:FindFirstChild("Noli")
+
 local JasonAbilities = {
-	["Slash"]    = { LastUsed = 0, Cooldown = 1.2 },
-	["Behead"]   = { LastUsed = 0, Cooldown = 8.0 },
-	["Eviscerate"]= { LastUsed = 0, Cooldown = 12.0 },
+	["MainAbility"] = {
+		["Cooldown"] = 1.9,
+		["LastUsed"] = 0,
+		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("JasonAttackRemote")
+	},
+	["AltAbility1"] = {
+		["Cooldown"] = 15,
+		["LastUsed"] = 0,
+		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("Behead")
+	},
+	["AltAbility2"] = {
+		["Cooldown"] = 25,
+		["LastUsed"] = 0,
+		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("GashingWound")
+	},
+	["AltAbility3"] = {
+		["Cooldown"] = 20,
+		["LastUsed"] = 0,
+		["Remote"] = jasonFolder and jasonFolder:FindFirstChild("Enraged")
+	}
 }
 
 local ShedletskyAbilities = {
-	["Slash"]    = { LastUsed = 0, Cooldown = 1.0 },
-	["SwordSlam"]= { LastUsed = 0, Cooldown = 6.0 },
+	["Slash"] = {
+		["Cooldown"] = 15,
+		["LastUsed"] = 0,
+		["Remote"] = shedFolder and shedFolder:FindFirstChild("ShedletskyAttackRemote")
+	},
+	["Fried Chicken"] = {
+		["Cooldown"] = 15,
+		["LastUsed"] = 0,
+		["Remote"] = shedFolder and shedFolder:FindFirstChild("ShedletskyChickenRemote")
+	}
 }
 
 local NoliAbilities = {
-	["VoidStrike"]= { LastUsed = 0, Cooldown = 2.0 },
-	["Teleport"]  = { LastUsed = 0, Cooldown = 10.0 },
+	["MainAbility"] = { -- Slash
+		["Cooldown"] = 1.8,
+		["LastUsed"] = 0,
+		["Remote"] = noliFolder and noliFolder:FindFirstChild("NoliAttackRemote")
+	},
+	["AltAbility2"] = { -- Nova
+		["Cooldown"] = 0,
+		["LastUsed"] = 0,
+		["Remote"] = noliFolder and noliFolder:FindFirstChild("NoliNova")
+	}
 }
 
-local JASON_AUTO_ABILITIES      = {"Slash", "Behead", "Eviscerate"}
-local SHEDLETSKY_AUTO_ABILITIES = {"Slash", "SwordSlam"}
-local NOLI_AUTO_ABILITIES       = {"VoidStrike"}
+local JASON_AUTO_ABILITIES = { "MainAbility", "AltAbility1", "AltAbility2" }
+local SHEDLETSKY_AUTO_ABILITIES = { "Slash", "Fried Chicken" }
+local NOLI_AUTO_ABILITIES = { "MainAbility", "AltAbility2" }
 
---------------------------------------------------------------------------------
--- HELPER FUNCTIONS
---------------------------------------------------------------------------------
+local autoFarmLowHpOn = false
+local autoFarmAllOn = false
+local lockInFrontOn = false
+local stickToPersonOn = false
+local targetHealthThreshold = 20
+local hitDistanceOffset = 3
+local MAX_ABILITY_DISTANCE = 15
+
+local currentLockedTarget = nil
+
+local LowHpToggle
+local AllPlayersToggle
+
 local function getCurrentCharacterType()
-	if not char then return "Unknown" end
-	if char:FindFirstChild("Behead") or char:FindFirstChild("JasonMask") then
-		return "Jason"
-	elseif char:FindFirstChild("SwordSlam") or char:FindFirstChild("FriedChicken") then
-		return "Shedletsky"
-	elseif char:FindFirstChild("VoidStrike") or char:FindFirstChild("NoliHead") then
-		return "Noli"
-	end
-	return "Unknown"
+	if not char then return nil end
+	return char:GetAttribute("Character")
 end
 
 local function canUseCharacter()
 	if not char or not hum or hum.Health <= 0 then return false end
-	if char:GetAttribute("Stunned") == true or char:GetAttribute("Frozen") == true then
-		return false
+	local cType = getCurrentCharacterType()
+
+	if cType == "Jason" or cType == "Slasher" or cType == "Noli" then
+		return char:GetAttribute("CanAttack") ~= false and char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true
+	elseif cType == "Shedletsky" then
+		return char:GetAttribute("CanRun") ~= false and char:GetAttribute("CanAttack") ~= false and char:GetAttribute("Emoting") ~= true and char:GetAttribute("AbilitiesDisabled") ~= true
 	end
 	return true
 end
+--------------------------------------------------------------------------------
+-- ANIMATION & ACTION HANDLER
+--------------------------------------------------------------------------------
+local function playShedletskyAnim()
+	if not char or not hum then return end
+	local anim = Instance.new("Animation")
+	local skin = char:GetAttribute("Skin")
+	local actualSkin = char:GetAttribute("ActualSkin")
 
-local function castCharacterAction(abilityName, targetPosition)
+	if skin == "RetroShed" then anim.AnimationId = "rbxassetid://84906874339359"
+	elseif skin == "M100Shed" or skin == "M75Shed" then anim.AnimationId = "rbxassetid://72661064392418"
+	elseif skin == "BusterShedletsky" then anim.AnimationId = "rbxassetid://102735588255002"
+	elseif skin == "ButcherShedletsky" then anim.AnimationId = "rbxassetid://83703568665249"
+	elseif skin == "NessShedletsky" or skin == "Scout" then anim.AnimationId = "rbxassetid://117635960799966"
+	elseif skin == "Targetman" then anim.AnimationId = "rbxassetid://117814766896269"
+	elseif skin == "SCP" then anim.AnimationId = "rbxassetid://113516249240896"
+	elseif skin == "Snyfort" or skin == "Pastelbeat" or skin == "Upbeat" or skin == "SoapyDX" or skin == "SoapyDXLegacy" or skin == "DownTunes" then anim.AnimationId = "rbxassetid://115680124099922"
+	elseif skin == "Pastello" and (actualSkin ~= "Pastello3" and actualSkin ~= "Pastello4") then anim.AnimationId = "rbxassetid://79130710510782"
+	elseif skin == "Pastello" and actualSkin == "Pastello3" then anim.AnimationId = "rbxassetid://99539026106525"
+	elseif skin == "Pastello" and actualSkin == "Pastello4" then anim.AnimationId = "rbxassetid://115470481199645"
+	elseif skin == "GoldenShedletsky" then anim.AnimationId = "rbxassetid://94865308722467"
+	elseif skin == "TillDawnShedletsky" then anim.AnimationId = "rbxassetid://112474546068323"
+	elseif skin == "Blega" then anim.AnimationId = "rbxassetid://74816403474613"
+	elseif skin == "SoapyDX4" then anim.AnimationId = "rbxassetid://122628818808958"
+	elseif skin == "VIPShed" then anim.AnimationId = "rbxassetid://80100528383027"
+	else anim.AnimationId = "rbxassetid://107302018639039" end
+
+	local track = hum:LoadAnimation(anim)
+	track:Play()
+
+	local conn
+	conn = char:GetAttributeChangedSignal("HitSlash"):Connect(function()
+		if char:GetAttribute("HitSlash") and skin ~= "Blega" then
+			track:Stop()
+			local hitAnim = Instance.new("Animation")
+			hitAnim.AnimationId = "rbxassetid://104029412142861"
+			hum:LoadAnimation(hitAnim):Play()
+			if conn then conn:Disconnect() end
+		end
+	end)
+end
+
+local function playNoliAnim()
+	if not char or not hum then return end
+	local anim = Instance.new("Animation")
+	local skin = char:GetAttribute("Skin")
+
+	if skin == "RetroNoli" then anim.AnimationId = "rbxassetid://120515916154475"
+	elseif skin == "Clockwork" then anim.AnimationId = "rbxassetid://108021827965381"
+	elseif skin == "NarratorNoli" then anim.AnimationId = "rbxassetid://128744951510910"
+	elseif skin == "Noli4" then anim.AnimationId = "rbxassetid://98438228576241"
+	elseif skin == "EvilTeh" then anim.AnimationId = "rbxassetid://97930480559280"
+	elseif skin == "AdminNoli" then anim.AnimationId = "rbxassetid://126706312443717"
+	elseif skin == "Pastway" or skin == "Fleatway" then anim.AnimationId = "rbxassetid://105540391527912"
+	else anim.AnimationId = "rbxassetid://133721031387826" end
+
+	local track = hum:LoadAnimation(anim)
+	track:Play()
+	track:AdjustSpeed(1.5)
+end
+
+local function castCharacterAction(actionName, targetPosition)
+	if not canUseCharacter() then return end
 	local cType = getCurrentCharacterType()
-	local abilityTable = (cType == "Jason" and JasonAbilities) 
-		or (cType == "Shedletsky" and ShedletskyAbilities) 
-		or (cType == "Noli" and NoliAbilities) 
+	local abilityTable = ((cType == "Jason" or cType == "Slasher") and JasonAbilities) or (cType == "Shedletsky" and ShedletskyAbilities) or (cType == "Noli" and NoliAbilities)
 
-	if not abilityTable or not abilityTable[abilityName] then return end
+	if not abilityTable then return end
+	local data = abilityTable[actionName]
 
-	local remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:FindFirstChild("Events")
-	if remotes then
-		local remoteEvent = remotes:FindFirstChild(abilityName)
-		if remoteEvent and remoteEvent:IsA("RemoteEvent") then
-			remoteEvent:FireServer(targetPosition)
-			abilityTable[abilityName].LastUsed = os.clock()
-			return
+	if data and data.Remote then
+		local now = os.clock()
+		if now - data.LastUsed >= data.Cooldown then
+			data.LastUsed = now
+
+			if cType == "Shedletsky" and actionName == "Slash" then
+				playShedletskyAnim()
+			elseif cType == "Noli" and actionName == "MainAbility" then
+				playNoliAnim()
+			end
+
+			if cType == "Noli" and actionName == "AltAbility2" then
+				local aimPos = targetPosition or (workspace.Camera.CFrame * CFrame.new(0, 0, -500)).Position
+				data.Remote:FireServer(aimPos, true)
+			else
+				data.Remote:FireServer()
+			end
 		end
-	end
-
-	local tool = char:FindFirstChild(abilityName)
-	if tool and tool:IsA("Tool") then
-		tool:Activate()
-		abilityTable[abilityName].LastUsed = os.clock()
 	end
 end
 
+--------------------------------------------------------------------------------
+-- TARGET DETECTION & POSITIONING
+--------------------------------------------------------------------------------
 local function isTargetAliveAndValid(p)
-	if not p or p == player then return false end
-	local c = p.Character
-	if not c then return false end
-	local h = c:FindFirstChildOfClass("Humanoid")
-	local r = c:FindFirstChild("HumanoidRootPart")
-	return h and r and h.Health > 0
+	if not p or not p.Parent or not p.Character or p == player then return false end
+	local tHum = p.Character:FindFirstChild("Humanoid")
+	local tRoot = p.Character:FindFirstChild("HumanoidRootPart")
+	return tHum and tRoot and tHum.Health > 0 and p.Character:IsDescendantOf(workspace)
 end
 
-local function getLowHpTarget(threshold)
+local function getLowHpTarget(maxHp)
 	if stickToPersonOn and isTargetAliveAndValid(currentLockedTarget) then
-		local h = currentLockedTarget.Character:FindFirstChildOfClass("Humanoid")
-		if h and h.Health <= threshold then
-			return currentLockedTarget
-		end
+		return currentLockedTarget
 	end
 
-	local lowestHp = math.huge
-	local bestPlr = nil
+	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return nil end
+
+	local lowestHp = maxHp or targetHealthThreshold
+	local targetPlayer = nil
 
 	for _, p in ipairs(Players:GetPlayers()) do
-		if isTargetAliveAndValid(p) then
-			local h = p.Character.Humanoid
-			if h.Health <= threshold and h.Health < lowestHp then
-				lowestHp = h.Health
-				bestPlr = p
+		if p ~= player and isTargetAliveAndValid(p) then
+			local tHum = p.Character.Humanoid
+			if tHum.Health <= lowestHp then
+				lowestHp = tHum.Health
+				targetPlayer = p
 			end
 		end
 	end
 
-	if bestPlr then currentLockedTarget = bestPlr end
-	return bestPlr
+	currentLockedTarget = targetPlayer
+	return targetPlayer
 end
 
 local function getAnyTarget()
@@ -175,45 +318,47 @@ local function getAnyTarget()
 	if not myRoot then return nil end
 
 	local closestDist = math.huge
-	local bestPlr = nil
+	local targetPlayer = nil
 
 	for _, p in ipairs(Players:GetPlayers()) do
-		if isTargetAliveAndValid(p) then
+		if p ~= player and isTargetAliveAndValid(p) then
 			local tRoot = p.Character.HumanoidRootPart
 			local dist = (tRoot.Position - myRoot.Position).Magnitude
 			if dist < closestDist then
 				closestDist = dist
-				bestPlr = p
+				targetPlayer = p
 			end
 		end
 	end
 
-	if bestPlr then currentLockedTarget = bestPlr end
-	return bestPlr
+	currentLockedTarget = targetPlayer
+	return targetPlayer
 end
 
 local function positionAtTarget(targetPlayer)
-	if not char or not targetPlayer or not targetPlayer.Character then return end
-	local myRoot = char:FindFirstChild("HumanoidRootPart")
-	local tRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not targetPlayer or not targetPlayer.Character then return end
+	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+	local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
 
-	if myRoot and tRoot then
-		if lockInFrontOn then
-			myRoot.CFrame = tRoot.CFrame * CFrame.new(0, 0, -hitDistanceOffset) * CFrame.Angles(0, math.pi, 0)
-		else
-			myRoot.CFrame = tRoot.CFrame * CFrame.new(0, 0, hitDistanceOffset)
+	if not myRoot or not targetRoot then return end
+
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = false
 		end
 	end
-end
 
-local function teleportToSafeSpace()
-	local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-	if myRoot then
-		myRoot.CFrame = SAFE_SPACE_CFRAME
+	local offset = hitDistanceOffset
+
+	if lockInFrontOn then
+		myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -offset) * CFrame.Angles(0, math.pi, 0)
+	else
+		myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, offset)
 	end
 end
+
 --------------------------------------------------------------------------------
--- HEARTBEAT LOOPS & UI TABS
+-- UNBROKEN STICKY POSITIONING LOOP (STEPS EVERY FRAME)
 --------------------------------------------------------------------------------
 RS.Stepped:Connect(function()
 	if not autoFarmLowHpOn and not autoFarmAllOn then return end
@@ -232,6 +377,9 @@ RS.Stepped:Connect(function()
 	end
 end)
 
+--------------------------------------------------------------------------------
+-- AUTO FARM HEARTBEAT LOOP (FIRE ABILITIES ONLY WHEN NEARBY)
+--------------------------------------------------------------------------------
 RS.Heartbeat:Connect(function()
 	if char and getCurrentCharacterType() == "Shedletsky" then
 		char:SetAttribute("CanRun", true)
@@ -286,7 +434,6 @@ RS.Heartbeat:Connect(function()
 		teleportToSafeSpace()
 	end
 end)
-
 --------------------------------------------------------------------------------
 -- AUTO FARM TAB ELEMENTS
 --------------------------------------------------------------------------------
@@ -366,7 +513,7 @@ AutoFarmTab:CreateButton({
 })
 
 --------------------------------------------------------------------------------
--- ESP SYSTEM
+-- RELIABLE BLUE HIGHLIGHT + TEXT ESP
 --------------------------------------------------------------------------------
 local espOn = false
 local activeESP = {}
@@ -571,12 +718,46 @@ CombatTab:CreateToggle({
 })
 
 --------------------------------------------------------------------------------
+-- TPWALK & MOVEMENT UTILITIES
+--------------------------------------------------------------------------------
+local tpwalkOn = false
+local speed = 1
+
+UtilityTab:CreateToggle({
+   Name = "TpWalk",
+   CurrentValue = false,
+   Flag = "TpWalk_Toggle",
+   Callback = function(Value)
+      tpwalkOn = Value
+   end,
+})
+
+UtilityTab:CreateSlider({
+   Name = "TpWalk Speed",
+   Range = {1, 10},
+   Increment = 1,
+   Suffix = "x",
+   CurrentValue = 1,
+   Flag = "Speed_Slider",
+   Callback = function(Value)
+      speed = Value
+   end,
+})
+
+RS.RenderStepped:Connect(function()
+    if tpwalkOn and char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
+        local hrp = char.HumanoidRootPart
+        local move = char.Humanoid.MoveDirection
+        hrp.CFrame = hrp.CFrame + (move * speed)
+    end
+end)
+
+--------------------------------------------------------------------------------
 -- ANIMATION INVISIBILITY SYSTEM
 --------------------------------------------------------------------------------
 local invisOn = false
 local invisTrack = nil
 local originalIds = {}
-
 local INVIS_ID = "rbxassetid://99789196955252"
 
 local function stopInvisAnim()
@@ -612,7 +793,6 @@ local function startInvisAnim()
 
 	if not animator or not animateScript then return end
 
-	-- Replace all default IDs inside the default Animate script
 	for _, v in ipairs(animateScript:GetDescendants()) do
 		if v:IsA("Animation") then
 			originalIds[v] = v.AnimationId
@@ -620,12 +800,10 @@ local function startInvisAnim()
 		end
 	end
 
-	-- Stop all playing tracks currently active
 	for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
 		track:Stop()
 	end
 
-	-- Play custom looping invisible animation track
 	local customAnim = Instance.new("Animation")
 	customAnim.AnimationId = INVIS_ID
 
@@ -654,41 +832,6 @@ UtilityTab:CreateToggle({
       end
    end,
 })
-
---------------------------------------------------------------------------------
--- TPWALK & MOVEMENT UTILITIES
---------------------------------------------------------------------------------
-local tpwalkOn = false
-local speed = 1
-
-UtilityTab:CreateToggle({
-   Name = "TpWalk",
-   CurrentValue = false,
-   Flag = "TpWalk_Toggle",
-   Callback = function(Value)
-      tpwalkOn = Value
-   end,
-})
-
-UtilityTab:CreateSlider({
-   Name = "TpWalk Speed",
-   Range = {1, 10},
-   Increment = 1,
-   Suffix = "x",
-   CurrentValue = 1,
-   Flag = "Speed_Slider",
-   Callback = function(Value)
-      speed = Value
-   end,
-})
-
-RS.RenderStepped:Connect(function()
-    if tpwalkOn and char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
-        local hrp = char.HumanoidRootPart
-        local move = char.Humanoid.MoveDirection
-        hrp.CFrame = hrp.CFrame + (move * speed)
-    end
-end)
 
 --------------------------------------------------------------------------------
 -- SAVE PLACE / PLATFORM
