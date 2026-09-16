@@ -168,6 +168,31 @@ local currentLockedTarget = nil
 local LowHpToggle
 local AllPlayersToggle
 
+--------------------------------------------------------------------------------
+-- COMBAT TAB ELEMENTS (M1 NO COOLDOWN)
+--------------------------------------------------------------------------------
+CombatTab:CreateSection("Combat Mods")
+
+CombatTab:CreateToggle({
+   Name = "M1 No Cooldown",
+   CurrentValue = false,
+   Flag = "M1NoCooldown_Toggle",
+   Callback = function(Value)
+      if Value then
+         if JasonAbilities and JasonAbilities["MainAbility"] then JasonAbilities["MainAbility"].Cooldown = 0 end
+         if ShedletskyAbilities and ShedletskyAbilities["Slash"] then ShedletskyAbilities["Slash"].Cooldown = 0 end
+         if NoliAbilities and NoliAbilities["MainAbility"] then NoliAbilities["MainAbility"].Cooldown = 0 end
+      else
+         if JasonAbilities and JasonAbilities["MainAbility"] then JasonAbilities["MainAbility"].Cooldown = 1.9 end
+         if ShedletskyAbilities and ShedletskyAbilities["Slash"] then ShedletskyAbilities["Slash"].Cooldown = 15 end
+         if NoliAbilities and NoliAbilities["MainAbility"] then NoliAbilities["MainAbility"].Cooldown = 1.8 end
+      end
+   end,
+})
+
+--------------------------------------------------------------------------------
+-- CHARACTER STATE CHECKS
+--------------------------------------------------------------------------------
 local function getCurrentCharacterType()
 	if not char then return nil end
 	return char:GetAttribute("Character")
