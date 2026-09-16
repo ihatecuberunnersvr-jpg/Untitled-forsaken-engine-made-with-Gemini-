@@ -169,28 +169,6 @@ local LowHpToggle
 local AllPlayersToggle
 
 --------------------------------------------------------------------------------
--- COMBAT TAB ELEMENTS (M1 NO COOLDOWN)
---------------------------------------------------------------------------------
-CombatTab:CreateSection("Combat Mods")
-
-CombatTab:CreateToggle({
-   Name = "M1 No Cooldown",
-   CurrentValue = false,
-   Flag = "M1NoCooldown_Toggle",
-   Callback = function(Value)
-      if Value then
-         if JasonAbilities and JasonAbilities["MainAbility"] then JasonAbilities["MainAbility"].Cooldown = 0 end
-         if ShedletskyAbilities and ShedletskyAbilities["Slash"] then ShedletskyAbilities["Slash"].Cooldown = 0 end
-         if NoliAbilities and NoliAbilities["MainAbility"] then NoliAbilities["MainAbility"].Cooldown = 0 end
-      else
-         if JasonAbilities and JasonAbilities["MainAbility"] then JasonAbilities["MainAbility"].Cooldown = 1.9 end
-         if ShedletskyAbilities and ShedletskyAbilities["Slash"] then ShedletskyAbilities["Slash"].Cooldown = 15 end
-         if NoliAbilities and NoliAbilities["MainAbility"] then NoliAbilities["MainAbility"].Cooldown = 1.8 end
-      end
-   end,
-})
-
---------------------------------------------------------------------------------
 -- CHARACTER STATE CHECKS
 --------------------------------------------------------------------------------
 local function getCurrentCharacterType()
@@ -637,6 +615,60 @@ end)
 Players.PlayerRemoving:Connect(function(p)
     removeESP(p)
 end)
+
+--------------------------------------------------------------------------------
+-- COMBAT TAB (ATTACK REMOTE & CAMLOCK)
+--------------------------------------------------------------------------------
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local autoAttackOn = false
+
+-- Robust Remote Event Finder
+local function findRemote()
+    local remote = ReplicatedStorage:FindFirstChild("JasonAttackRemote", true)
+    if remote then return remote end
+
+    local charAbilities = ReplicatedStorage:FindFirstChild("CharacterAbilities", true)
+    if charAbilities then
+        local jasonFolder = charAbilities:FindFirstChild("Jason", true)
+        if jasonFolder then
+            return jasonFolder:FindFirstChild("JasonAttackRemote", true)
+        end
+    end
+    return nil
+end
+
+local attackRemote = findRemote()
+
+-- Continuous Auto-Attack Loop (Triggered via CombatTab toggle)
+task.spawn(function()
+    while true do
+        if autoAttackOn then
+            if not attackRemote then
+                attackRemote = findRemote()
+            end
+            
+            if attackRemote then
+                attackRemote:FireServer()
+            end
+        end
+        task.wait(0.1)
+    end
+end)
+
+CombatTab:CreateToggle({
+   Name = "Auto Attack (0.1s Loop)",
+   CurrentValue = false,
+   Flag = "AutoAttack_Toggle",
+   Callback = function(Value)
+      autoAttackOn = Value
+      if Value and not attackRemote then
+         attackRemote = findRemote()
+         if not attackRemote then
+            warn("[Script Error]: Could not locate 'JasonAttackRemote' in ReplicatedStorage!")
+         end
+      end
+   end,
+})
 
 --------------------------------------------------------------------------------
 -- CAMLOCK FUNCTIONALITY
