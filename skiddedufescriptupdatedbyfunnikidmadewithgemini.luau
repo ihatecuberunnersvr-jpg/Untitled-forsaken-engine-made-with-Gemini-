@@ -1031,3 +1031,134 @@ UtilityTab:CreateButton({
       hrp.CFrame = CFrame.new(savedPos + Vector3.new(0, 6, 0))
    end,
 })
+--------------------------------------------------------------------------------
+-- PART 4: EXTRA COMBAT ATTACKS (COOLKID, 1x4, LISTRO)
+--------------------------------------------------------------------------------
+local coolkidAutoOn = false
+local auto1x4On = false
+local listroAutoOn = false
+
+-- Remote Finder Functions
+local function findCoolkidRemote()
+    local remote = ReplicatedStorage:FindFirstChild("CoolkidAttackRemote", true)
+    if remote then return remote end
+
+    local charAbilities = ReplicatedStorage:FindFirstChild("CharacterAbilities", true)
+    if charAbilities then
+        local coolkidFolder = charAbilities:FindFirstChild("Coolkid", true)
+        if coolkidFolder then
+            return coolkidFolder:FindFirstChild("CoolkidAttackRemote", true)
+        end
+    end
+    return nil
+end
+
+local function find1x4Remote()
+    local remote = ReplicatedStorage:FindFirstChild("1x4AttackRemote", true)
+    if remote then return remote end
+
+    local charAbilities = ReplicatedStorage:FindFirstChild("CharacterAbilities", true)
+    if charAbilities then
+        local folder1x4 = charAbilities:FindFirstChild("1x4", true)
+        if folder1x4 then
+            return folder1x4:FindFirstChild("1x4AttackRemote", true)
+        end
+    end
+    return nil
+end
+
+local function findListroRemote()
+    local remote = ReplicatedStorage:FindFirstChild("ListroPunch", true)
+    if remote then return remote end
+
+    local remotesFolder = ReplicatedStorage:FindFirstChild("Remotes", true)
+    if remotesFolder then
+        return remotesFolder:FindFirstChild("ListroPunch", true)
+    end
+    return nil
+end
+
+local coolkidRemote = findCoolkidRemote()
+local remote1x4 = find1x4Remote()
+local listroRemote = findListroRemote()
+
+-- Coolkid Loop
+task.spawn(function()
+    while true do
+        if coolkidAutoOn then
+            if not coolkidRemote then coolkidRemote = findCoolkidRemote() end
+            if coolkidRemote then coolkidRemote:FireServer() end
+        end
+        task.wait()
+    end
+end)
+
+-- 1x4 Loop
+task.spawn(function()
+    while true do
+        if auto1x4On then
+            if not remote1x4 then remote1x4 = find1x4Remote() end
+            if remote1x4 then remote1x4:FireServer() end
+        end
+        task.wait()
+    end
+end)
+
+-- Listro Punch Loop
+task.spawn(function()
+    while true do
+        if listroAutoOn then
+            if not listroRemote then listroRemote = findListroRemote() end
+            if listroRemote then listroRemote:FireServer() end
+        end
+        task.wait()
+    end
+end)
+
+-- Combat Tab Toggles
+CombatTab:CreateSection("Additional Attack Loops")
+
+CombatTab:CreateToggle({
+   Name = "Auto Coolkid Attack (0 Delay)",
+   CurrentValue = false,
+   Flag = "CoolkidAuto_Toggle",
+   Callback = function(Value)
+      coolkidAutoOn = Value
+      if Value and not coolkidRemote then
+         coolkidRemote = findCoolkidRemote()
+         if not coolkidRemote then
+            warn("[Script Error]: Could not locate 'CoolkidAttackRemote' in ReplicatedStorage!")
+         end
+      end
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Auto 1x4 Attack (0 Delay)",
+   CurrentValue = false,
+   Flag = "1x4Auto_Toggle",
+   Callback = function(Value)
+      auto1x4On = Value
+      if Value and not remote1x4 then
+         remote1x4 = find1x4Remote()
+         if not remote1x4 then
+            warn("[Script Error]: Could not locate '1x4AttackRemote' in ReplicatedStorage!")
+         end
+      end
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Auto Listro Punch (0 Delay)",
+   CurrentValue = false,
+   Flag = "ListroAuto_Toggle",
+   Callback = function(Value)
+      listroAutoOn = Value
+      if Value and not listroRemote then
+         listroRemote = findListroRemote()
+         if not listroRemote then
+            warn("[Script Error]: Could not locate 'ListroPunch' in ReplicatedStorage!")
+         end
+      end
+   end,
+})
