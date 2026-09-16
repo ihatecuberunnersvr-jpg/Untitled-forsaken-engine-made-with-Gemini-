@@ -639,7 +639,7 @@ end
 
 local attackRemote = findRemote()
 
--- Continuous Auto-Attack Loop (Triggered via CombatTab toggle)
+-- Continuous Auto-Attack Loop (Zero Delay)
 task.spawn(function()
     while true do
         if autoAttackOn then
@@ -651,12 +651,12 @@ task.spawn(function()
                 attackRemote:FireServer()
             end
         end
-        task.wait(0.1)
+        task.wait(0)
     end
 end)
 
 CombatTab:CreateToggle({
-   Name = "Auto Attack (0.1s Loop)",
+   Name = "Auto Attack (No Delay Loop)",
    CurrentValue = false,
    Flag = "AutoAttack_Toggle",
    Callback = function(Value)
