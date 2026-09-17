@@ -13,9 +13,9 @@ local camera = workspace.CurrentCamera
 
 --// RAYFIELD WINDOW SETUP
 local Window = Rayfield:CreateWindow({
-   Name = "UFE Hub",
-   LoadingTitle = "UFE Hub Interface",
-   LoadingSubtitle = "by Assistant",
+   Name = "FLUXUSSAKEN FREE FOR ALL",
+   LoadingTitle = "FLUXUSSAKEN FREE FOR ALL",
+   LoadingSubtitle = "by PASTWAY",
    ConfigurationSaving = {
       Enabled = false,
    },
@@ -619,7 +619,6 @@ end)
 --------------------------------------------------------------------------------
 -- COMBAT TAB (ATTACK REMOTE & CAMLOCK)
 --------------------------------------------------------------------------------
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local autoAttackOn = false
 
 -- Robust Remote Event Finder
@@ -671,103 +670,114 @@ CombatTab:CreateToggle({
 })
 
 --------------------------------------------------------------------------------
--- CAMLOCK FUNCTIONALITY
+-- NEW CAMLOCK FUNCTIONALITY
 --------------------------------------------------------------------------------
 local ACTIVATION_DISTANCE = 80 
 local DROP_DISTANCE = 200      
 local CAMERA_OFFSET = Vector3.new(0, 4.5, 10) 
+local TURN_SMOOTHNESS = 0.25
 
 local currentTarget = nil
 local isLocked = false
 
-local function getPlayerInCameraView()
-    local myChar = player.Character
-    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
-    
-    local myRoot = myChar.HumanoidRootPart
-    local bestTarget = nil
-    local highestFacingScore = 0.4 
-    local cameraLookDirection = camera.CFrame.LookVector
+local function getBestTarget()
+	local character = player.Character
+	if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+	
+	local myRoot = character.HumanoidRootPart
+	local bestTarget = nil
+	local highestFacingScore = 0.3 
+	local cameraLookDirection = camera.CFrame.LookVector
 
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player and p.Character then
-            local targetChar = p.Character
-            local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-            local targetHumanoid = targetChar:FindFirstChildOfClass("Humanoid")
-            
-            if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
-                local distance = (myRoot.Position - targetRoot.Position).Magnitude
-                if distance <= ACTIVATION_DISTANCE then
-                    local vectorToTarget = (targetRoot.Position - camera.CFrame.Position).Unit
-                    local dotProduct = cameraLookDirection:Dot(vectorToTarget) 
-                    
-                    if dotProduct > highestFacingScore then
-                        highestFacingScore = dotProduct
-                        bestTarget = targetChar
-                    end
-                end
-            end
-        end
-    end
-    return bestTarget
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player and p.Character then
+			local targetChar = p.Character
+			local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+			local targetHumanoid = targetChar:FindFirstChildOfClass("Humanoid")
+			
+			if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+				local distance = (myRoot.Position - targetRoot.Position).Magnitude
+				if distance <= ACTIVATION_DISTANCE then
+					local vectorToTarget = (targetRoot.Position - camera.CFrame.Position).Unit
+					local dotProduct = cameraLookDirection:Dot(vectorToTarget) 
+					
+					if dotProduct > highestFacingScore then
+						highestFacingScore = dotProduct
+						bestTarget = targetChar
+					end
+				end
+			end
+		end
+	end
+	return bestTarget
+end
+
+local function isTargetValid(targetChar)
+	if not targetChar or not targetChar.Parent or not targetChar:FindFirstChild("HumanoidRootPart") then
+		return false
+	end
+	
+	local targetHumanoid = targetChar:FindFirstChildOfClass("Humanoid")
+	if not targetHumanoid or targetHumanoid.Health <= 0 then
+		return false
+	end
+
+	local myChar = player.Character
+	if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+		local distance = (myChar.HumanoidRootPart.Position - targetChar.HumanoidRootPart.Position).Magnitude
+		if distance > DROP_DISTANCE then
+			return false
+		end
+	end
+
+	return true
 end
 
 local function disableLock()
-    isLocked = false
-    currentTarget = nil
-    RS:UnbindFromRenderStep("CamlockLoop")
+	isLocked = false
+	currentTarget = nil
+	RS:UnbindFromRenderStep("CamAndCharLockLoop")
 end
 
-local function enableLock(targetPlayerChar)
-    currentTarget = targetPlayerChar
-    isLocked = true
+local function enableLock()
+	isLocked = true
 
-    RS:BindToRenderStep("CamlockLoop", Enum.RenderPriority.Camera.Value + 1, function()
-        local myChar = player.Character
-        if not myChar or not myChar:FindFirstChild("HumanoidRootPart") or not currentTarget or not currentTarget:FindFirstChild("HumanoidRootPart") then
-            disableLock()
-            return
-        end
+	RS:BindToRenderStep("CamAndCharLockLoop", Enum.RenderPriority.Camera.Value + 1, function()
+		if not isLocked then return end
 
-        local myRoot = myChar.HumanoidRootPart
-        local targetRoot = currentTarget.HumanoidRootPart
-        local targetHumanoid = currentTarget:FindFirstChildOfClass("Humanoid")
+		local myChar = player.Character
+		if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
 
-        if not targetHumanoid or targetHumanoid.Health <= 0 or (myRoot.Position - targetRoot.Position).Magnitude > DROP_DISTANCE then
-            disableLock()
-            return
-        end
+		if not isTargetValid(currentTarget) then
+			currentTarget = getBestTarget()
+		end
 
-        local myPos = myRoot.Position
-        local targetPos = targetRoot.Position
-        local targetAimPos = targetPos + Vector3.new(0, 1.5, 0)
-        
-        local flatDirection = Vector3.new(targetPos.X - myPos.X, 0, targetPos.Z - myPos.Z).Unit
-        if flatDirection.Magnitude == 0 then flatDirection = Vector3.new(0, 0, 1) end
+		if currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
+			local myRoot = myChar.HumanoidRootPart
+			local myPos = myRoot.Position
+			local targetPos = currentTarget.HumanoidRootPart.Position
+			local targetAimPos = targetPos + Vector3.new(0, 1.5, 0)
 
-        local finalCamPos = myPos - (flatDirection * CAMERA_OFFSET.Z) + Vector3.new(0, CAMERA_OFFSET.Y, 0)
-        camera.CFrame = CFrame.lookAt(finalCamPos, targetAimPos)
-    end)
+			local charLookTarget = Vector3.new(targetPos.X, myPos.Y, targetPos.Z)
+			local charTargetCFrame = CFrame.lookAt(myPos, charLookTarget)
+			myRoot.CFrame = myRoot.CFrame:Lerp(charTargetCFrame, TURN_SMOOTHNESS)
+
+			local flatDirection = Vector3.new(targetPos.X - myPos.X, 0, targetPos.Z - myPos.Z).Unit
+			if flatDirection.Magnitude == 0 then flatDirection = Vector3.new(0, 0, 1) end
+
+			local finalCamPos = myPos - (flatDirection * CAMERA_OFFSET.Z) + Vector3.new(0, CAMERA_OFFSET.Y, 0)
+			camera.CFrame = CFrame.lookAt(finalCamPos, targetAimPos)
+		end
+	end)
 end
 
 CombatTab:CreateToggle({
-   Name = "CamLock Target",
+   Name = "NEW Camlock",
    CurrentValue = false,
-   Flag = "CamLock_Toggle",
+   Flag = "NewCamLock_Toggle",
    Callback = function(Value)
       if Value then
-         local target = getPlayerInCameraView()
-         if target then
-            enableLock(target)
-         else
-            Rayfield:Notify({
-               Title = "CamLock",
-               Content = "No Target in Camera View",
-               Duration = 2,
-               Image = 4483362458,
-            })
-            disableLock()
-         end
+         enableLock()
       else
          disableLock()
       end
@@ -875,7 +885,6 @@ local function startInvisAnim()
 	invisTrack.Looped = true
 	invisTrack:Play()
 
-	-- Legacy Noclip Connection
 	legacyNoclipConn = RS.Stepped:Connect(function()
 		if not invisOn or not player.Character then return end
 		for _, v in pairs(player.Character:GetDescendants()) do
