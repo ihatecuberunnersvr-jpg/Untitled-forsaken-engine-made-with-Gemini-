@@ -11,7 +11,7 @@ end
 --------------------------------------------------------------------------------
 -- RAYFIELD GEN 2 SETUP
 --------------------------------------------------------------------------------
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2-preview"))()
 
 local player = game.Players.LocalPlayer
 local Players = game:GetService("Players")
@@ -23,34 +23,16 @@ local camera = workspace.CurrentCamera
 
 --// RAYFIELD WINDOW SETUP (GEN 2)
 local Window = Rayfield:CreateWindow({
-   Name = "FLUXUSSAKEN FREE FOR ALL",
-   Icon = 0,
-   LoadingTitle = "FLUXUSSAKEN FREE FOR ALL",
-   LoadingSubtitle = "by PASTWAY",
-   Theme = "Default",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
-
-   ConfigurationSaving = {
-      Enabled = false,
-      FolderName = nil,
-      FileName = "FluxussakenConfig"
-   },
-
-   Discord = {
-      Enabled = false,
-      Invite = "noinvitelink",
-      RememberJoins = true
-   },
-
-   KeySystem = false
+   name = "FLUXUSSAKEN FREE FOR ALL",
+   subtitle = "by PASTWAY",
+   sidebarLayout = true,
 })
 
---// TABS
-local CombatTab = Window:CreateTab("Combat", 4483362458)
-local AutoFarmTab = Window:CreateTab("Auto Farm", 4483362458)
-local ESPTab = Window:CreateTab("ESP", 4483362458)
-local UtilityTab = Window:CreateTab("Movement & Misc", 4483362458)
+--// TABS (GEN 2 SYNTAX)
+local CombatTab = Window:CreateTab({ name = "Combat", icon = 4483362458 })
+local AutoFarmTab = Window:CreateTab({ name = "Auto Farm", icon = 4483362458 })
+local ESPTab = Window:CreateTab({ name = "ESP", icon = 4483362458 })
+local UtilityTab = Window:CreateTab({ name = "Movement & Misc", icon = 4483362458 })
 
 --------------------------------------------------------------------------------
 -- CHARACTER & STATE TRACKING
@@ -459,35 +441,31 @@ RS.Heartbeat:Connect(function()
 	end
 end)
 --------------------------------------------------------------------------------
--- AUTO FARM TAB ELEMENTS (GEN 2 UPDATED)
+-- AUTO FARM TAB ELEMENTS (GEN 2 PREVIEW SYNTAX)
 --------------------------------------------------------------------------------
 AutoFarmTab:CreateToggle({
-   Name = "Lock in Front of Person",
-   CurrentValue = false,
-   Flag = "LockInFront_Toggle",
-   Callback = function(Value)
-      lockInFrontOn = Value
+   name = "Lock in Front of Person",
+   currentValue = false,
+   callback = function(value)
+      lockInFrontOn = value
    end,
 })
 
 AutoFarmTab:CreateToggle({
-   Name = "Stick to Person?",
-   CurrentValue = false,
-   Flag = "StickToPerson_Toggle",
-   Callback = function(Value)
-      stickToPersonOn = Value
-      if not Value then currentLockedTarget = nil end
+   name = "Stick to Person?",
+   currentValue = false,
+   callback = function(value)
+      stickToPersonOn = value
+      if not value then currentLockedTarget = nil end
    end,
 })
 
 AutoFarmTab:CreateDropdown({
-   Name = "Position Offset (Hit Range)",
-   Options = {"Close (~3 studs)", "Slightly Far (~5.5 studs)", "Far (~8 studs)"},
-   CurrentOption = {"Close (~3 studs)"},
-   MultipleOptions = false,
-   Flag = "HitDistance_Dropdown",
-   Callback = function(Option)
-      local selected = typeof(Option) == "table" and Option[1] or Option
+   name = "Position Offset (Hit Range)",
+   options = {"Close (~3 studs)", "Slightly Far (~5.5 studs)", "Far (~8 studs)"},
+   currentOption = "Close (~3 studs)",
+   callback = function(option)
+      local selected = typeof(option) == "table" and option[1] or option
       if selected:find("Slightly Far") then
          hitDistanceOffset = 5.5
       elseif selected:find("Far") then
@@ -499,43 +477,39 @@ AutoFarmTab:CreateDropdown({
 })
 
 LowHpToggle = AutoFarmTab:CreateToggle({
-   Name = "Auto Farm Low Health Players",
-   CurrentValue = false,
-   Flag = "AutoFarmLowHp_Toggle",
-   Callback = function(Value)
-      autoFarmLowHpOn = Value
-      if Value and AllPlayersToggle then AllPlayersToggle:Set(false) end
-      if not Value then currentLockedTarget = nil end
+   name = "Auto Farm Low Health Players",
+   currentValue = false,
+   callback = function(value)
+      autoFarmLowHpOn = value
+      if value and AllPlayersToggle then AllPlayersToggle:Set(false) end
+      if not value then currentLockedTarget = nil end
    end,
 })
 
 AllPlayersToggle = AutoFarmTab:CreateToggle({
-   Name = "Auto Farm All Players",
-   CurrentValue = false,
-   Flag = "AutoFarmAll_Toggle",
-   Callback = function(Value)
-      autoFarmAllOn = Value
-      if Value and LowHpToggle then LowHpToggle:Set(false) end
-      if not Value then currentLockedTarget = nil end
+   name = "Auto Farm All Players",
+   currentValue = false,
+   callback = function(value)
+      autoFarmAllOn = value
+      if value and LowHpToggle then LowHpToggle:Set(false) end
+      if not value then currentLockedTarget = nil end
    end,
 })
 
 AutoFarmTab:CreateDropdown({
-   Name = "Low HP Target Threshold",
-   Options = {"10 HP", "20 HP", "30 HP", "50 HP"},
-   CurrentOption = {"20 HP"},
-   MultipleOptions = false,
-   Flag = "HpThreshold_Dropdown",
-   Callback = function(Option)
-      local selected = typeof(Option) == "table" and Option[1] or Option
+   name = "Low HP Target Threshold",
+   options = {"10 HP", "20 HP", "30 HP", "50 HP"},
+   currentOption = "20 HP",
+   callback = function(option)
+      local selected = typeof(option) == "table" and option[1] or option
       local val = tonumber(string.match(selected, "%d+"))
       if val then targetHealthThreshold = val end
    end,
 })
 
 AutoFarmTab:CreateButton({
-   Name = "Teleport to Safe Space",
-   Callback = function()
+   name = "Teleport to Safe Space",
+   callback = function()
       teleportToSafeSpace()
    end,
 })
@@ -616,11 +590,10 @@ local function applyESP(plr)
 end
 
 ESPTab:CreateToggle({
-   Name = "Blue Highlight & Box ESP",
-   CurrentValue = false,
-   Flag = "ESP_Toggle",
-   Callback = function(Value)
-      espOn = Value
+   name = "Blue Highlight & Box ESP",
+   currentValue = false,
+   callback = function(value)
+      espOn = value
       if espOn then
          for _, p in ipairs(Players:GetPlayers()) do
             applyESP(p)
@@ -677,12 +650,11 @@ task.spawn(function()
 end)
 
 CombatTab:CreateToggle({
-   Name = "Auto Attack (No Delay Loop)",
-   CurrentValue = false,
-   Flag = "AutoAttack_Toggle",
-   Callback = function(Value)
-      autoAttackOn = Value
-      if Value and not attackRemote then
+   name = "Auto Attack (No Delay Loop)",
+   currentValue = false,
+   callback = function(value)
+      autoAttackOn = value
+      if value and not attackRemote then
          attackRemote = findRemote()
          if not attackRemote then
             warn("[Script Error]: Could not locate 'JasonAttackRemote' in ReplicatedStorage!")
@@ -794,11 +766,10 @@ local function enableLock()
 end
 
 CombatTab:CreateToggle({
-   Name = "NEW Camlock",
-   CurrentValue = false,
-   Flag = "NewCamLock_Toggle",
-   Callback = function(Value)
-      if Value then
+   name = "NEW Camlock",
+   currentValue = false,
+   callback = function(value)
+      if value then
          enableLock()
       else
          disableLock()
@@ -889,12 +860,11 @@ end)
 CombatTab:CreateSection("Additional Attack Loops")
 
 CombatTab:CreateToggle({
-   Name = "Auto Coolkid Attack (0 Delay)",
-   CurrentValue = false,
-   Flag = "CoolkidAuto_Toggle",
-   Callback = function(Value)
-      coolkidAutoOn = Value
-      if Value and not coolkidRemote then
+   name = "Auto Coolkid Attack (0 Delay)",
+   currentValue = false,
+   callback = function(value)
+      coolkidAutoOn = value
+      if value and not coolkidRemote then
          coolkidRemote = findCoolkidRemote()
          if not coolkidRemote then
             warn("[Script Error]: Could not locate 'CoolkidAttackRemote' in ReplicatedStorage!")
@@ -904,12 +874,11 @@ CombatTab:CreateToggle({
 })
 
 CombatTab:CreateToggle({
-   Name = "Auto 1x4 Attack (0 Delay)",
-   CurrentValue = false,
-   Flag = "1x4Auto_Toggle",
-   Callback = function(Value)
-      auto1x4On = Value
-      if Value and not remote1x4 then
+   name = "Auto 1x4 Attack (0 Delay)",
+   currentValue = false,
+   callback = function(value)
+      auto1x4On = value
+      if value and not remote1x4 then
          remote1x4 = find1x4Remote()
          if not remote1x4 then
             warn("[Script Error]: Could not locate '1x4AttackRemote' in ReplicatedStorage!")
@@ -919,12 +888,11 @@ CombatTab:CreateToggle({
 })
 
 CombatTab:CreateToggle({
-   Name = "Auto Listro Punch (0 Delay)",
-   CurrentValue = false,
-   Flag = "ListroAuto_Toggle",
-   Callback = function(Value)
-      listroAutoOn = Value
-      if Value and not listroRemote then
+   name = "Auto Listro Punch (0 Delay)",
+   currentValue = false,
+   callback = function(value)
+      listroAutoOn = value
+      if value and not listroRemote then
          listroRemote = findListroRemote()
          if not listroRemote then
             warn("[Script Error]: Could not locate 'ListroPunch' in ReplicatedStorage!")
@@ -940,23 +908,21 @@ local tpwalkOn = false
 local speed = 1
 
 UtilityTab:CreateToggle({
-   Name = "TpWalk",
-   CurrentValue = false,
-   Flag = "TpWalk_Toggle",
-   Callback = function(Value)
-      tpwalkOn = Value
+   name = "TpWalk",
+   currentValue = false,
+   callback = function(value)
+      tpwalkOn = value
    end,
 })
 
 UtilityTab:CreateSlider({
-   Name = "TpWalk Speed",
-   Range = {1, 10},
-   Increment = 1,
-   Suffix = "x",
-   CurrentValue = 1,
-   Flag = "Speed_Slider",
-   Callback = function(Value)
-      speed = Value
+   name = "TpWalk Speed",
+   range = {1, 10},
+   increment = 1,
+   suffix = "x",
+   currentValue = 1,
+   callback = function(value)
+      speed = value
    end,
 })
 
@@ -1051,11 +1017,10 @@ player.CharacterAdded:Connect(function()
 end)
 
 UtilityTab:CreateToggle({
-   Name = "Legacy Invisibility",
-   CurrentValue = false,
-   Flag = "LegacyInvis_Toggle",
-   Callback = function(Value)
-      if Value then
+   name = "Legacy Invisibility",
+   currentValue = false,
+   callback = function(value)
+      if value then
          startInvisAnim()
       else
          stopInvisAnim()
@@ -1154,11 +1119,10 @@ local function ApplyInvisibility(bool)
 end
 
 UtilityTab:CreateToggle({
-   Name = "New Invisibility",
-   CurrentValue = false,
-   Flag = "NewInvis_Toggle",
-   Callback = function(Value)
-      ApplyInvisibility(Value)
+   name = "New Invisibility",
+   currentValue = false,
+   callback = function(value)
+      ApplyInvisibility(value)
    end,
 })
 
@@ -1169,8 +1133,8 @@ local savedPos = Vector3.new(-1119.03076171875, 894.944580078125, -85.8998565673
 local platform
 
 UtilityTab:CreateButton({
-   Name = "Save Place (Platform TP)",
-   Callback = function()
+   name = "Save Place (Platform TP)",
+   callback = function()
       local hrp = char and char:FindFirstChild("HumanoidRootPart")
       if not hrp then return end
 
