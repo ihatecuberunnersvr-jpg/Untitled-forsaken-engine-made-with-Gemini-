@@ -614,7 +614,7 @@ Players.PlayerRemoving:Connect(function(p)
     removeESP(p)
 end)
 --------------------------------------------------------------------------------
--- COMBAT TAB (ATTACK REMOTE & CAMLOCK)
+-- COMBAT TAB (ATTACK REMOTES, SHEDLETSKY CHICKEN & CAMLOCK)
 --------------------------------------------------------------------------------
 local autoAttackOn = false
 
@@ -658,6 +658,58 @@ CombatTab:CreateToggle({
          attackRemote = findRemote()
          if not attackRemote then
             warn("[Script Error]: Could not locate 'JasonAttackRemote' in ReplicatedStorage!")
+         end
+      end
+   end,
+})
+
+--------------------------------------------------------------------------------
+-- SHEDLETSKY AUTO CHICKEN
+--------------------------------------------------------------------------------
+local shedChickenAutoOn = false
+
+local function findChickenRemote()
+    local remote = ReplicatedStorage:FindFirstChild("ShedletskyChickenRemote", true)
+    if remote then return remote end
+
+    local charAbilities = ReplicatedStorage:FindFirstChild("CharacterAbilities", true)
+    if charAbilities then
+        local shedFolder = charAbilities:FindFirstChild("Shedletsky", true)
+        if shedFolder then
+            return shedFolder:FindFirstChild("ShedletskyChickenRemote", true)
+        end
+    end
+    return nil
+end
+
+local chickenRemote = findChickenRemote()
+
+task.spawn(function()
+    while true do
+        if shedChickenAutoOn then
+            if not chickenRemote then
+                chickenRemote = findChickenRemote()
+            end
+            
+            if chickenRemote then
+                task.spawn(function()
+                    chickenRemote:InvokeServer()
+                end)
+            end
+        end
+        task.wait()
+    end
+end)
+
+CombatTab:CreateToggle({
+   name = "Shedletsky Auto Chicken",
+   currentValue = false,
+   callback = function(value)
+      shedChickenAutoOn = value
+      if value and not chickenRemote then
+         chickenRemote = findChickenRemote()
+         if not chickenRemote then
+            warn("[Script Error]: Could not locate 'ShedletskyChickenRemote' in ReplicatedStorage!")
          end
       end
    end,
