@@ -1,10 +1,15 @@
 --------------------------------------------------------------------------------
 -- GAME ID CHECKER
 --------------------------------------------------------------------------------
-local TARGET_PLACE_ID = 100039707794702
+local ALLOWED_PLACE_IDS = {
+	[100039707794702] = true,
+	[99585784721880]  = true,
+	[99055603649009]  = true,
+	[70444122688316]  = true,
+}
 
-if game.PlaceId ~= TARGET_PLACE_ID then
-	game:GetService("Players").LocalPlayer:Kick("Incorrect Game! This script only works for Place ID: " .. tostring(TARGET_PLACE_ID))
+if not ALLOWED_PLACE_IDS[game.PlaceId] then
+	game:GetService("Players").LocalPlayer:Kick("Incorrect Game! Current Place ID (" .. tostring(game.PlaceId) .. ") is not authorized.")
 	return
 end
 
