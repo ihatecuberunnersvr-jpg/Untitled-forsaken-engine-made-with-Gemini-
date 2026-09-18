@@ -1,6 +1,16 @@
---[[
-	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
-]]
+--------------------------------------------------------------------------------
+-- GAME ID CHECKER
+--------------------------------------------------------------------------------
+local TARGET_PLACE_ID = 100039707794702
+
+if game.PlaceId ~= TARGET_PLACE_ID then
+	game:GetService("Players").LocalPlayer:Kick("Incorrect Game! This script only works for Place ID: " .. tostring(TARGET_PLACE_ID))
+	return
+end
+
+--------------------------------------------------------------------------------
+-- RAYFIELD GEN 2 SETUP
+--------------------------------------------------------------------------------
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local player = game.Players.LocalPlayer
@@ -11,17 +21,28 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local camera = workspace.CurrentCamera
 
---// RAYFIELD WINDOW SETUP
+--// RAYFIELD WINDOW SETUP (GEN 2)
 local Window = Rayfield:CreateWindow({
    Name = "FLUXUSSAKEN FREE FOR ALL",
+   Icon = 0,
    LoadingTitle = "FLUXUSSAKEN FREE FOR ALL",
    LoadingSubtitle = "by PASTWAY",
+   Theme = "Default",
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false,
+
    ConfigurationSaving = {
       Enabled = false,
+      FolderName = nil,
+      FileName = "FluxussakenConfig"
    },
+
    Discord = {
       Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true
    },
+
    KeySystem = false
 })
 
@@ -438,7 +459,7 @@ RS.Heartbeat:Connect(function()
 	end
 end)
 --------------------------------------------------------------------------------
--- AUTO FARM TAB ELEMENTS
+-- AUTO FARM TAB ELEMENTS (GEN 2 UPDATED)
 --------------------------------------------------------------------------------
 AutoFarmTab:CreateToggle({
    Name = "Lock in Front of Person",
@@ -463,11 +484,13 @@ AutoFarmTab:CreateDropdown({
    Name = "Position Offset (Hit Range)",
    Options = {"Close (~3 studs)", "Slightly Far (~5.5 studs)", "Far (~8 studs)"},
    CurrentOption = {"Close (~3 studs)"},
+   MultipleOptions = false,
    Flag = "HitDistance_Dropdown",
    Callback = function(Option)
-      if Option[1]:find("Slightly Far") then
+      local selected = typeof(Option) == "table" and Option[1] or Option
+      if selected:find("Slightly Far") then
          hitDistanceOffset = 5.5
-      elseif Option[1]:find("Far") then
+      elseif selected:find("Far") then
          hitDistanceOffset = 8
       else
          hitDistanceOffset = 3
@@ -501,9 +524,11 @@ AutoFarmTab:CreateDropdown({
    Name = "Low HP Target Threshold",
    Options = {"10 HP", "20 HP", "30 HP", "50 HP"},
    CurrentOption = {"20 HP"},
+   MultipleOptions = false,
    Flag = "HpThreshold_Dropdown",
    Callback = function(Option)
-      local val = tonumber(string.match(Option[1], "%d+"))
+      local selected = typeof(Option) == "table" and Option[1] or Option
+      local val = tonumber(string.match(selected, "%d+"))
       if val then targetHealthThreshold = val end
    end,
 })
@@ -615,13 +640,11 @@ end)
 Players.PlayerRemoving:Connect(function(p)
     removeESP(p)
 end)
-
 --------------------------------------------------------------------------------
 -- COMBAT TAB (ATTACK REMOTE & CAMLOCK)
 --------------------------------------------------------------------------------
 local autoAttackOn = false
 
--- Robust Remote Event Finder
 local function findRemote()
     local remote = ReplicatedStorage:FindFirstChild("JasonAttackRemote", true)
     if remote then return remote end
@@ -638,7 +661,6 @@ end
 
 local attackRemote = findRemote()
 
--- Continuous Auto-Attack Loop (Zero Delay)
 task.spawn(function()
     while true do
         if autoAttackOn then
@@ -785,6 +807,133 @@ CombatTab:CreateToggle({
 })
 
 --------------------------------------------------------------------------------
+-- EXTRA COMBAT ATTACKS (COOLKID, 1x4, LISTRO)
+--------------------------------------------------------------------------------
+local coolkidAutoOn = false
+local auto1x4On = false
+local listroAutoOn = false
+
+local function findCoolkidRemote()
+    local remote = ReplicatedStorage:FindFirstChild("CoolkidAttackRemote", true)
+    if remote then return remote end
+
+    local charAbilities = ReplicatedStorage:FindFirstChild("CharacterAbilities", true)
+    if charAbilities then
+        local coolkidFolder = charAbilities:FindFirstChild("Coolkid", true)
+        if coolkidFolder then
+            return coolkidFolder:FindFirstChild("CoolkidAttackRemote", true)
+        end
+    end
+    return nil
+end
+
+local function find1x4Remote()
+    local remote = ReplicatedStorage:FindFirstChild("1x4AttackRemote", true)
+    if remote then return remote end
+
+    local charAbilities = ReplicatedStorage:FindFirstChild("CharacterAbilities", true)
+    if charAbilities then
+        local folder1x4 = charAbilities:FindFirstChild("1x4", true)
+        if folder1x4 then
+            return folder1x4:FindFirstChild("1x4AttackRemote", true)
+        end
+    end
+    return nil
+end
+
+local function findListroRemote()
+    local remote = ReplicatedStorage:FindFirstChild("ListroPunch", true)
+    if remote then return remote end
+
+    local remotesFolder = ReplicatedStorage:FindFirstChild("Remotes", true)
+    if remotesFolder then
+        return remotesFolder:FindFirstChild("ListroPunch", true)
+    end
+    return nil
+end
+
+local coolkidRemote = findCoolkidRemote()
+local remote1x4 = find1x4Remote()
+local listroRemote = findListroRemote()
+
+task.spawn(function()
+    while true do
+        if coolkidAutoOn then
+            if not coolkidRemote then coolkidRemote = findCoolkidRemote() end
+            if coolkidRemote then coolkidRemote:FireServer() end
+        end
+        task.wait()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if auto1x4On then
+            if not remote1x4 then remote1x4 = find1x4Remote() end
+            if remote1x4 then remote1x4:FireServer() end
+        end
+        task.wait()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if listroAutoOn then
+            if not listroRemote then listroRemote = findListroRemote() end
+            if listroRemote then listroRemote:FireServer() end
+        end
+        task.wait()
+    end
+end)
+
+CombatTab:CreateSection("Additional Attack Loops")
+
+CombatTab:CreateToggle({
+   Name = "Auto Coolkid Attack (0 Delay)",
+   CurrentValue = false,
+   Flag = "CoolkidAuto_Toggle",
+   Callback = function(Value)
+      coolkidAutoOn = Value
+      if Value and not coolkidRemote then
+         coolkidRemote = findCoolkidRemote()
+         if not coolkidRemote then
+            warn("[Script Error]: Could not locate 'CoolkidAttackRemote' in ReplicatedStorage!")
+         end
+      end
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Auto 1x4 Attack (0 Delay)",
+   CurrentValue = false,
+   Flag = "1x4Auto_Toggle",
+   Callback = function(Value)
+      auto1x4On = Value
+      if Value and not remote1x4 then
+         remote1x4 = find1x4Remote()
+         if not remote1x4 then
+            warn("[Script Error]: Could not locate '1x4AttackRemote' in ReplicatedStorage!")
+         end
+      end
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Auto Listro Punch (0 Delay)",
+   CurrentValue = false,
+   Flag = "ListroAuto_Toggle",
+   Callback = function(Value)
+      listroAutoOn = Value
+      if Value and not listroRemote then
+         listroRemote = findListroRemote()
+         if not listroRemote then
+            warn("[Script Error]: Could not locate 'ListroPunch' in ReplicatedStorage!")
+         end
+      end
+   end,
+})
+
+--------------------------------------------------------------------------------
 -- TPWALK & MOVEMENT UTILITIES
 --------------------------------------------------------------------------------
 local tpwalkOn = false
@@ -822,7 +971,6 @@ end)
 --------------------------------------------------------------------------------
 -- INVISIBILITY SYSTEMS (LEGACY & NEW DISAPPEAR)
 --------------------------------------------------------------------------------
--- LEGACY INVISIBILITY SYSTEM (WITH NOCLIP INTEGRATED)
 local invisOn = false
 local invisTrack = nil
 local originalIds = {}
@@ -1038,136 +1186,5 @@ UtilityTab:CreateButton({
       end
 
       hrp.CFrame = CFrame.new(savedPos + Vector3.new(0, 6, 0))
-   end,
-})
---------------------------------------------------------------------------------
--- PART 4: EXTRA COMBAT ATTACKS (COOLKID, 1x4, LISTRO)
---------------------------------------------------------------------------------
-local coolkidAutoOn = false
-local auto1x4On = false
-local listroAutoOn = false
-
--- Remote Finder Functions
-local function findCoolkidRemote()
-    local remote = ReplicatedStorage:FindFirstChild("CoolkidAttackRemote", true)
-    if remote then return remote end
-
-    local charAbilities = ReplicatedStorage:FindFirstChild("CharacterAbilities", true)
-    if charAbilities then
-        local coolkidFolder = charAbilities:FindFirstChild("Coolkid", true)
-        if coolkidFolder then
-            return coolkidFolder:FindFirstChild("CoolkidAttackRemote", true)
-        end
-    end
-    return nil
-end
-
-local function find1x4Remote()
-    local remote = ReplicatedStorage:FindFirstChild("1x4AttackRemote", true)
-    if remote then return remote end
-
-    local charAbilities = ReplicatedStorage:FindFirstChild("CharacterAbilities", true)
-    if charAbilities then
-        local folder1x4 = charAbilities:FindFirstChild("1x4", true)
-        if folder1x4 then
-            return folder1x4:FindFirstChild("1x4AttackRemote", true)
-        end
-    end
-    return nil
-end
-
-local function findListroRemote()
-    local remote = ReplicatedStorage:FindFirstChild("ListroPunch", true)
-    if remote then return remote end
-
-    local remotesFolder = ReplicatedStorage:FindFirstChild("Remotes", true)
-    if remotesFolder then
-        return remotesFolder:FindFirstChild("ListroPunch", true)
-    end
-    return nil
-end
-
-local coolkidRemote = findCoolkidRemote()
-local remote1x4 = find1x4Remote()
-local listroRemote = findListroRemote()
-
--- Coolkid Loop
-task.spawn(function()
-    while true do
-        if coolkidAutoOn then
-            if not coolkidRemote then coolkidRemote = findCoolkidRemote() end
-            if coolkidRemote then coolkidRemote:FireServer() end
-        end
-        task.wait()
-    end
-end)
-
--- 1x4 Loop
-task.spawn(function()
-    while true do
-        if auto1x4On then
-            if not remote1x4 then remote1x4 = find1x4Remote() end
-            if remote1x4 then remote1x4:FireServer() end
-        end
-        task.wait()
-    end
-end)
-
--- Listro Punch Loop
-task.spawn(function()
-    while true do
-        if listroAutoOn then
-            if not listroRemote then listroRemote = findListroRemote() end
-            if listroRemote then listroRemote:FireServer() end
-        end
-        task.wait()
-    end
-end)
-
--- Combat Tab Toggles
-CombatTab:CreateSection("Additional Attack Loops")
-
-CombatTab:CreateToggle({
-   Name = "Auto Coolkid Attack (0 Delay)",
-   CurrentValue = false,
-   Flag = "CoolkidAuto_Toggle",
-   Callback = function(Value)
-      coolkidAutoOn = Value
-      if Value and not coolkidRemote then
-         coolkidRemote = findCoolkidRemote()
-         if not coolkidRemote then
-            warn("[Script Error]: Could not locate 'CoolkidAttackRemote' in ReplicatedStorage!")
-         end
-      end
-   end,
-})
-
-CombatTab:CreateToggle({
-   Name = "Auto 1x4 Attack (0 Delay)",
-   CurrentValue = false,
-   Flag = "1x4Auto_Toggle",
-   Callback = function(Value)
-      auto1x4On = Value
-      if Value and not remote1x4 then
-         remote1x4 = find1x4Remote()
-         if not remote1x4 then
-            warn("[Script Error]: Could not locate '1x4AttackRemote' in ReplicatedStorage!")
-         end
-      end
-   end,
-})
-
-CombatTab:CreateToggle({
-   Name = "Auto Listro Punch (0 Delay)",
-   CurrentValue = false,
-   Flag = "ListroAuto_Toggle",
-   Callback = function(Value)
-      listroAutoOn = Value
-      if Value and not listroRemote then
-         listroRemote = findListroRemote()
-         if not listroRemote then
-            warn("[Script Error]: Could not locate 'ListroPunch' in ReplicatedStorage!")
-         end
-      end
    end,
 })
